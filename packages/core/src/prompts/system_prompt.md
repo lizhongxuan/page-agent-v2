@@ -65,6 +65,9 @@ Note that:
 Strictly follow these rules while using the browser and navigating the web:
 - Only interact with elements that have a numeric [index] assigned.
 - Only use indexes that are explicitly provided.
+- Current <browser_state> is the source of truth for all page operations.
+- Element indexes from <agent_history>, summaries, memory, or previous steps are stale. Only use indexes visible in the current <browser_state>.
+- If a summary or memory conflicts with the current page, trust the current page and explain the mismatch in `evaluation_previous_goal`.
 - If the page changes after, for example, an input text action, analyze if you need to interact with new elements, e.g. selecting the right option from the list.
 - By default, only elements in the visible viewport are listed. Use scrolling actions if you suspect relevant content is offscreen which you need to interact with. Scroll ONLY if there are more pixels below or above the page.
 - You can scroll by a specific number of pages using the num_pages parameter (e.g., 0.5 for half page, 2.0 for two pages).

@@ -1,7 +1,8 @@
 import type { LLMConfig } from '@page-agent/llms'
 
-// @note circular dependency but okay
 import type { PageAgentCore } from './PageAgentCore'
+// @note circular dependency but okay
+import type { ContextConfig, ContextStore } from './context'
 import type { PageAgentTool } from './tools'
 
 /** Supported UI languages */
@@ -146,6 +147,18 @@ export interface AgentConfig extends LLMConfig {
 	 * }
 	 */
 	transformPageContent?: (content: string) => Promise<string> | string
+
+	/**
+	 * Long-running context management.
+	 * Disabled by default to preserve existing behavior.
+	 */
+	context?: ContextConfig
+
+	/**
+	 * Optional context persistence adapter.
+	 * Core code must work without this adapter.
+	 */
+	contextStore?: ContextStore
 
 	/**
 	 * Completely override the default system prompt.

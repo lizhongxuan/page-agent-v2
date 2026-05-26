@@ -8,6 +8,7 @@ import type { BrowserState, PageController } from '@page-agent/page-controller'
 import chalk from 'chalk'
 import * as z from 'zod/v4'
 
+import { ContextRuntime, PageAgentPromptBuilder } from './context'
 import SYSTEM_PROMPT from './prompts/system_prompt.md?raw'
 import {
 	createSearchExplorationState,
@@ -29,6 +30,7 @@ import type {
 import { assert, fetchLlmsTxt, normalizeResponse, uid, waitFor } from './utils'
 
 export { tool, type PageAgentTool } from './tools'
+export * from './context'
 export type * from './types'
 
 export type PageAgentCoreConfig = AgentConfig & { pageController: PageController }
@@ -88,6 +90,8 @@ export class PageAgentCore extends EventTarget {
 	#llm: LLM
 	#abortController = new AbortController()
 	#observations: string[] = []
+	#promptBuilder = new PageAgentPromptBuilder()
+	#contextRuntime: ContextRuntime | null = null
 
 	/** internal states during a single task execution */
 	#states = {
@@ -205,6 +209,12 @@ export class PageAgentCore extends EventTarget {
 		if (!task) throw new Error('Task is required')
 		this.task = task
 		this.taskId = uid()
+		this.#contextRuntime = this.config.context?.enabled
+			? new ContextRuntime({
+					config: this.config.context,
+					taskId: this.taskId,
+				})
+			: null
 
 		// Disable ask_user tool if onAskUser is not set
 		if (!this.onAskUser) {
@@ -290,7 +300,7 @@ export class PageAgentCore extends EventTarget {
 					output: output,
 				}
 
-				this.history.push({
+				const stepEvent = {
 					type: 'step',
 					stepIndex: step,
 					reflection,
@@ -298,7 +308,12 @@ export class PageAgentCore extends EventTarget {
 					usage: result.usage,
 					rawResponse: result.rawResponse,
 					rawRequest: result.rawRequest,
-				} as AgentStepEvent)
+				} as AgentStepEvent
+				this.history.push(stepEvent)
+				this.#contextRuntime?.recordStep(stepEvent)
+				if (this.#contextRuntime && this.config.contextStore) {
+					await this.config.contextStore.save(this.taskId, this.#contextRuntime.toStoredContext())
+				}
 				this.#emitHistoryChange()
 
 				//
@@ -588,72 +603,41 @@ export class PageAgentCore extends EventTarget {
 
 	async #assembleUserPrompt(): Promise<string> {
 		const browserState = this.#states.browserState!
-
-		let prompt = ''
-
-		// <instructions> (optional)
-
-		prompt += await this.#getInstructions()
-
-		// <agent_state>
-		//  - <user_request>
-		//  - <step_info>
-		// <agent_state>
-
-		const stepCount = this.history.filter((e) => e.type === 'step').length
-
-		prompt += '<agent_state>\n'
-		prompt += '<user_request>\n'
-		prompt += `${this.task}\n`
-		prompt += '</user_request>\n'
-		prompt += '<step_info>\n'
-		prompt += `Step ${stepCount + 1} of ${this.config.maxSteps} max possible steps\n`
-		prompt += `Current time: ${new Date().toLocaleString()}\n`
-		prompt += '</step_info>\n'
-		prompt += '</agent_state>\n\n'
-
-		// <agent_history>
-		//  - <step_N> for steps
-		//  - <sys> for observations and system messages
-
-		prompt += '<agent_history>\n'
-
-		let stepIndex = 0
-		for (const event of this.history) {
-			if (event.type === 'step') {
-				stepIndex++
-				prompt += `<step_${stepIndex}>\n`
-				prompt += `Evaluation of Previous Step: ${event.reflection.evaluation_previous_goal}\n`
-				prompt += `Memory: ${event.reflection.memory}\n`
-				prompt += `Next Goal: ${event.reflection.next_goal}\n`
-				prompt += `Action Results: ${event.action.output}\n`
-				prompt += `</step_${stepIndex}>\n`
-			} else if (event.type === 'observation') {
-				prompt += `<sys>${event.content}</sys>\n`
-			} else if (event.type === 'user_takeover') {
-				prompt += `<sys>User took over control and made changes to the page</sys>\n`
-			} else if (event.type === 'error') {
-				// Error events are mainly for panel rendering, not included in LLM context
-				// to avoid polluting the agent's reasoning with transient errors
-			}
-		}
-
-		prompt += '</agent_history>\n\n'
-
-		// <browser_state>
-
 		let pageContent = browserState.content
 		if (this.config.transformPageContent) {
 			pageContent = await this.config.transformPageContent(pageContent)
 		}
 
-		prompt += '<browser_state>\n'
-		prompt += browserState.header + '\n'
-		prompt += pageContent + '\n'
-		prompt += browserState.footer + '\n\n'
-		prompt += '</browser_state>\n\n'
+		const instructions = await this.#getInstructions()
+		const stepCount = this.history.filter((e) => e.type === 'step').length
+		const currentTime = new Date().toLocaleString()
+		if (this.#contextRuntime) {
+			const pack = this.#contextRuntime.buildPack({
+				task: this.task,
+				stepCount,
+				maxSteps: this.config.maxSteps,
+				currentTime,
+				instructions,
+				history: this.history,
+				browserState: {
+					...browserState,
+					content: pageContent,
+				},
+			})
 
-		return prompt
+			return this.#promptBuilder.buildContextPrompt(pack)
+		}
+
+		return this.#promptBuilder.buildLegacyPrompt({
+			instructions,
+			task: this.task,
+			stepCount,
+			maxSteps: this.config.maxSteps,
+			currentTime,
+			history: this.history,
+			browserState,
+			pageContent,
+		})
 	}
 
 	#onDone(success = true) {
