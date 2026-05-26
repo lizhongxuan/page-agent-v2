@@ -1920,7 +1920,7 @@ git add packages/core/src/context packages/extension/src/agent/sessionContinuati
 git commit -m "feat(core): classify browser task continuation"
 ```
 
-- [ ] **Step 4: Commit docs**
+- [x] **Step 4: Commit docs**
 
 Because `docs/` is ignored by the global gitignore in this workspace, force-add the docs:
 
