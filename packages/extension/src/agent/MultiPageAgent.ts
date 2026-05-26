@@ -1,7 +1,22 @@
-import { type AgentConfig, PageAgentCore } from '@page-agent/core'
+import { type AgentConfig, type AgentStepEvent, PageAgentCore } from '@page-agent/core'
+
+import { HttpKnowledgeClient } from '@/webops/knowledge/HttpKnowledgeClient'
+import { KnowledgeContextProvider } from '@/webops/knowledge/KnowledgeContextProvider'
+import {
+	type KnowledgeSettings,
+	defaultKnowledgeSettings,
+} from '@/webops/knowledge/KnowledgeSettings'
+import type { RecordedSession } from '@/webops/recorder/actionEvents'
+import {
+	addWebOpsKnowledgeHits,
+	finishWebOpsSession,
+	recordWebOpsAction,
+	startWebOpsSession,
+} from '@/webops/recorder/runtimeSession'
 
 import { RemotePageController } from './RemotePageController'
 import { TabsController } from './TabsController'
+import { formatAskUserResponse } from './askUserResponse'
 import SYSTEM_PROMPT from './system_prompt.md?raw'
 import { createTabTools } from './tabTools'
 
@@ -14,6 +29,8 @@ function detectLanguage(): 'en-US' | 'zh-CN' {
 interface MultiPageAgentConfig extends AgentConfig {
 	includeInitialTab?: boolean
 	experimentalIncludeAllTabs?: boolean
+	knowledgeSettings?: KnowledgeSettings
+	onAskUser?: (question: string) => Promise<string>
 }
 
 /**
@@ -22,6 +39,12 @@ interface MultiPageAgentConfig extends AgentConfig {
  * - can be used from a side panel or a content script
  */
 export class MultiPageAgent extends PageAgentCore {
+	private getWebOpsSessionRef: () => RecordedSession | undefined = () => undefined
+
+	getWebOpsSession() {
+		return this.getWebOpsSessionRef()
+	}
+
 	constructor(config: MultiPageAgentConfig) {
 		// multi page controller
 		const tabsController = new TabsController()
@@ -47,6 +70,9 @@ export class MultiPageAgent extends PageAgentCore {
 		 * This heartbeat mechanism acts as a backup.
 		 */
 		let heartBeatInterval: null | number = null
+		let pendingKnowledgeContext = ''
+		let webOpsSession: RecordedSession | undefined
+		let lastRecordedStepIndex = -1
 
 		super({
 			...config,
@@ -56,6 +82,36 @@ export class MultiPageAgent extends PageAgentCore {
 
 			onBeforeTask: async (agent) => {
 				await tabsController.init(agent.task, { includeInitialTab, experimentalIncludeAllTabs })
+
+				const tabInfo = tabsController.currentTabId
+					? await tabsController.getTabInfo(tabsController.currentTabId)
+					: { url: '', title: '' }
+
+				startWebOpsSession({
+					id: agent.taskId || crypto.randomUUID(),
+					task: agent.task,
+					startUrl: tabInfo.url,
+				})
+				webOpsSession = undefined
+
+				const knowledgeSettings = config.knowledgeSettings ?? defaultKnowledgeSettings
+				if (knowledgeSettings.enabled && knowledgeSettings.baseUrl) {
+					const provider = new KnowledgeContextProvider(
+						new HttpKnowledgeClient({
+							baseUrl: knowledgeSettings.baseUrl,
+							apiKey: knowledgeSettings.apiKey || undefined,
+						})
+					)
+					const knowledge = await provider.getContext({
+						task: agent.task,
+						url: tabInfo.url,
+						title: tabInfo.title,
+						projectKey: knowledgeSettings.projectKey || undefined,
+						limit: 3,
+					})
+					pendingKnowledgeContext = knowledge.promptContext
+					addWebOpsKnowledgeHits(knowledge.hits)
+				}
 
 				heartBeatInterval = window.setInterval(() => {
 					chrome.storage.local.set({
@@ -74,15 +130,34 @@ export class MultiPageAgent extends PageAgentCore {
 					heartBeatInterval = null
 				}
 
+				webOpsSession = finishWebOpsSession()
+				if (webOpsSession) {
+					await chrome.storage.local.set({ lastWebOpsSession: webOpsSession })
+				}
+
 				await chrome.storage.local.set({
 					isAgentRunning: false,
 				})
 			},
 
-			onBeforeStep: async (agent) => {
+			onBeforeStep: async (agent, step) => {
 				if (!tabsController.currentTabId) return
 				// make sure the current tab is loaded before the step starts
 				await tabsController.waitUntilTabLoaded(tabsController.currentTabId!)
+				if (step === 0 && pendingKnowledgeContext) {
+					agent.pushObservation(pendingKnowledgeContext)
+					pendingKnowledgeContext = ''
+				}
+			},
+
+			onAfterStep: async (agent, history) => {
+				const stepEvent = [...history].reverse().find((event) => event.type === 'step') as
+					| AgentStepEvent
+					| undefined
+				if (!stepEvent || stepEvent.stepIndex === lastRecordedStepIndex) return
+
+				lastRecordedStepIndex = stepEvent.stepIndex
+				await recordNonDomStep(stepEvent, tabsController)
 			},
 
 			onDispose: () => {
@@ -98,5 +173,99 @@ export class MultiPageAgent extends PageAgentCore {
 				tabsController.dispose()
 			},
 		})
+
+		this.onAskUser =
+			config.onAskUser ?? createPageInteractionAskUser(tabsController, pageController)
+
+		this.getWebOpsSessionRef = () => webOpsSession
 	}
+}
+
+function createPageInteractionAskUser(
+	tabsController: TabsController,
+	pageController: RemotePageController
+) {
+	return async (question: string) => {
+		const tabInfo = tabsController.currentTabId
+			? await tabsController.getTabInfo(tabsController.currentTabId)
+			: { url: '', title: '' }
+		const response = await pageController.requestInteraction(
+			{
+				type: 'input',
+				requestId: crypto.randomUUID(),
+				title: '需要你补充信息',
+				message: question,
+				placeholder: '请直接输入答案，提交后 Agent 会继续执行。',
+				submitButtonLabel: '提交并继续',
+			},
+			600_000
+		)
+
+		recordWebOpsAction({
+			id: crypto.randomUUID(),
+			type: 'handover',
+			timestamp: Date.now(),
+			pageUrl: tabInfo.url,
+			pageTitle: tabInfo.title,
+			result: response.type === 'cancelled' ? 'skipped' : 'success',
+			note: question,
+		})
+
+		return formatAskUserResponse(response)
+	}
+}
+
+async function recordNonDomStep(stepEvent: AgentStepEvent, tabsController: TabsController) {
+	const action = stepEvent.action
+	if (['click_element_by_index', 'input_text', 'select_dropdown_option'].includes(action.name)) {
+		return
+	}
+
+	const tabInfo = tabsController.currentTabId
+		? await tabsController.getTabInfo(tabsController.currentTabId)
+		: { url: '', title: '' }
+	const result = action.output.startsWith('❌') ? 'failed' : 'success'
+	const base = {
+		id: crypto.randomUUID(),
+		timestamp: Date.now(),
+		pageUrl: tabInfo.url,
+		pageTitle: tabInfo.title,
+		result,
+		note: action.output,
+	} as const
+
+	if (action.name === 'wait') {
+		recordWebOpsAction({
+			...base,
+			type: 'wait',
+			value: String(action.input?.seconds ?? 1),
+		})
+		return
+	}
+
+	if (action.name === 'open_new_tab') {
+		recordWebOpsAction({
+			...base,
+			type: 'navigate',
+			value: String(action.input?.url ?? tabInfo.url),
+		})
+		return
+	}
+
+	if (action.name === 'done') {
+		recordWebOpsAction({
+			...base,
+			type: 'extract',
+			target: action.input?.text ? { text: String(action.input.text).slice(0, 120) } : undefined,
+			value: action.input?.text ? String(action.input.text) : undefined,
+		})
+		return
+	}
+
+	if (action.name === 'ask_user') return
+
+	recordWebOpsAction({
+		...base,
+		type: 'observe',
+	})
 }

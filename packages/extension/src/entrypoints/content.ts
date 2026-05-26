@@ -1,4 +1,5 @@
 import { initPageController } from '@/agent/RemotePageController.content'
+import { mountWebOpsOverlay } from '@/webops/interactions/overlayRoot'
 
 // import { DEMO_CONFIG } from '@/agent/constants'
 
@@ -10,6 +11,7 @@ export default defineContentScript({
 
 	main() {
 		console.debug(`${DEBUG_PREFIX} Loaded on ${window.location.href}`)
+		mountWebOpsOverlay()
 		initPageController()
 
 		// if auth token matches, expose agent to page

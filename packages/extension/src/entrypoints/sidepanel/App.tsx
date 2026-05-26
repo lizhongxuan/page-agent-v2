@@ -1,11 +1,11 @@
-import { History, Send, Settings, Square } from 'lucide-react'
+import { History, Plus, Send, Settings, Square } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { ConfigPanel } from '@/components/ConfigPanel'
 import { HistoryDetail } from '@/components/HistoryDetail'
 import { HistoryList } from '@/components/HistoryList'
 import { ActivityCard, EventCard } from '@/components/cards'
-import { EmptyState, Logo, MotionOverlay, StatusDot } from '@/components/misc'
+import { EmptyState, MotionOverlay, StatusDot } from '@/components/misc'
 import { Button } from '@/components/ui/button'
 import {
 	InputGroup,
@@ -15,6 +15,10 @@ import {
 } from '@/components/ui/input-group'
 import { saveSession } from '@/lib/db'
 
+import {
+	buildSessionContinuationTask,
+	formatSessionDisplayTask,
+} from '../../agent/sessionContinuation'
 import { useAgent } from '../../agent/useAgent'
 
 type View =
@@ -23,31 +27,52 @@ type View =
 	| { name: 'history' }
 	| { name: 'history-detail'; sessionId: string }
 
+interface RunTaskOptions {
+	forceNewSession?: boolean
+}
+
 export default function App() {
 	const [view, setView] = useState<View>({ name: 'chat' })
 	const [inputValue, setInputValue] = useState('')
 	const historyRef = useRef<HTMLDivElement>(null)
 	const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-	const { status, history, activity, currentTask, config, execute, stop, configure } = useAgent()
+	const {
+		status,
+		history,
+		activity,
+		currentTask,
+		config,
+		webOpsSession,
+		pendingQuestion,
+		execute,
+		answerQuestion,
+		newSession,
+		stop,
+		configure,
+	} = useAgent()
 
 	// Persist session when task finishes
-	const prevStatusRef = useRef(status)
+	const savedSessionKeyRef = useRef('')
 	useEffect(() => {
-		const prev = prevStatusRef.current
-		prevStatusRef.current = status
-
 		if (
-			prev === 'running' &&
 			(status === 'completed' || status === 'error') &&
 			history.length > 0 &&
-			currentTask
+			currentTask &&
+			webOpsSession !== undefined
 		) {
-			saveSession({ task: currentTask, history, status }).catch((err) =>
-				console.error('[SidePanel] Failed to save session:', err)
-			)
+			const saveKey = `${currentTask}:${status}:${history.length}`
+			if (savedSessionKeyRef.current === saveKey) return
+			savedSessionKeyRef.current = saveKey
+
+			saveSession({
+				task: currentTask,
+				history,
+				status,
+				webOpsSession: webOpsSession ?? undefined,
+			}).catch((err) => console.error('[SidePanel] Failed to save session:', err))
 		}
-	}, [status, history, currentTask])
+	}, [status, history, currentTask, webOpsSession])
 
 	// Auto-scroll to bottom on new events
 	useEffect(() => {
@@ -57,32 +82,61 @@ export default function App() {
 	}, [history, activity])
 
 	const runTask = useCallback(
-		(task: string) => {
+		(task: string, options: RunTaskOptions = {}) => {
 			const normalizedTask = task.trim()
 			if (!normalizedTask || status === 'running') return
 
 			setInputValue('')
 			setView({ name: 'chat' })
 
-			execute(normalizedTask).catch((error) => {
+			const shouldContinueSession =
+				!options.forceNewSession && (!!currentTask || history.length > 0)
+			const taskToExecute = shouldContinueSession
+				? buildSessionContinuationTask({
+						previousTask: currentTask || '上一轮浏览器任务',
+						userMessage: normalizedTask,
+					})
+				: normalizedTask
+			const displayTask = shouldContinueSession
+				? formatSessionDisplayTask(currentTask || '上一轮浏览器任务', normalizedTask)
+				: normalizedTask
+			const carryHistory = shouldContinueSession ? history : undefined
+
+			execute(taskToExecute, { displayTask, carryHistory }).catch((error) => {
 				console.error('[SidePanel] Failed to execute task:', error)
 			})
 		},
-		[execute, status]
+		[currentTask, execute, history, status]
 	)
 
 	const handleSubmit = useCallback(
 		(e?: React.SyntheticEvent) => {
 			e?.preventDefault()
+			const answer = inputValue.trim()
+			if (pendingQuestion) {
+				if (!answer) return
+				if (answerQuestion(answer)) {
+					setInputValue('')
+					setView({ name: 'chat' })
+				}
+				return
+			}
 			runTask(inputValue)
 		},
-		[inputValue, runTask]
+		[answerQuestion, inputValue, pendingQuestion, runTask]
 	)
 
 	const handleStop = useCallback(() => {
 		console.log('[SidePanel] Stopping task...')
 		stop()
 	}, [stop])
+
+	const handleNewSession = useCallback(() => {
+		if (status === 'running') return
+		setInputValue('')
+		setView({ name: 'chat' })
+		newSession()
+	}, [newSession, status])
 
 	const handleKeyDown = (e: React.KeyboardEvent) => {
 		if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
@@ -111,7 +165,7 @@ export default function App() {
 			<HistoryList
 				onSelect={(id) => setView({ name: 'history-detail', sessionId: id })}
 				onBack={() => setView({ name: 'chat' })}
-				onRerun={runTask}
+				onRerun={(task) => runTask(task, { forceNewSession: true })}
 			/>
 		)
 	}
@@ -121,7 +175,7 @@ export default function App() {
 			<HistoryDetail
 				sessionId={view.sessionId}
 				onBack={() => setView({ name: 'history' })}
-				onRerun={runTask}
+				onRerun={(task) => runTask(task, { forceNewSession: true })}
 			/>
 		)
 	}
@@ -129,17 +183,31 @@ export default function App() {
 	// --- Chat view ---
 
 	const isRunning = status === 'running'
+	const isAnsweringQuestion = isRunning && !!pendingQuestion
 	const showEmptyState = !currentTask && history.length === 0 && !isRunning
+	const inputPlaceholder = pendingQuestion
+		? '请在这里回答 Agent 的问题，Enter 提交后继续'
+		: isRunning
+			? 'Agent 正在执行。点击右侧停止按钮可取消'
+			: '描述你的任务...（Enter 发送）'
 
 	return (
 		<div className="relative flex flex-col h-screen bg-background">
 			<MotionOverlay active={isRunning} />
-			{/* Header */}
+			{/* Header actions. Chrome already renders the extension title above the side panel. */}
 			<header className="flex items-center justify-between border-b px-3 py-2">
-				<div className="flex items-center gap-2">
-					<Logo className="size-5" />
-					<span className="text-sm font-medium">Page Agent Ext</span>
-				</div>
+				<Button
+					variant="outline"
+					size="sm"
+					onClick={handleNewSession}
+					disabled={isRunning}
+					className="h-7 gap-1 px-2 text-xs"
+					aria-label="新建会话"
+					title={isRunning ? '请先停止当前任务' : '新建会话'}
+				>
+					<Plus className="size-3.5" />
+					新建会话
+				</Button>
 				<div className="flex items-center gap-1">
 					<StatusDot status={status} />
 					<Button
@@ -185,6 +253,14 @@ export default function App() {
 						<EventCard key={index} event={event} />
 					))}
 
+					{pendingQuestion && (
+						<div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-950">
+							<div className="mb-1 font-semibold">Agent 需要你补充信息</div>
+							<div className="leading-relaxed">{pendingQuestion.question}</div>
+							<div className="mt-2 text-blue-700">请在底部输入框回复，提交后会继续当前任务。</div>
+						</div>
+					)}
+
 					{/* Activity indicator at bottom */}
 					{activity && <ActivityCard activity={activity} />}
 				</div>
@@ -195,20 +271,32 @@ export default function App() {
 				<InputGroup className="relative rounded-lg">
 					<InputGroupTextarea
 						ref={textareaRef}
-						placeholder="Describe your task... (Enter to send)"
+						placeholder={inputPlaceholder}
 						value={inputValue}
 						onChange={(e) => setInputValue(e.target.value)}
 						onKeyDown={handleKeyDown}
-						disabled={isRunning}
-						className="text-xs pr-12 min-h-10"
+						readOnly={isRunning && !isAnsweringQuestion}
+						className={isAnsweringQuestion ? 'text-xs pr-20 min-h-10' : 'text-xs pr-12 min-h-10'}
 					/>
-					<InputGroupAddon align="inline-end" className="absolute bottom-0 right-0">
-						{isRunning ? (
+					<InputGroupAddon align="inline-end" className="absolute bottom-0 right-0 gap-1">
+						{isAnsweringQuestion && (
 							<InputGroupButton
 								size="icon-sm"
 								variant="destructive"
 								onClick={handleStop}
-								className="size-7"
+								className="size-7 cursor-pointer"
+								aria-label="Stop task"
+								title="停止任务"
+							>
+								<Square className="size-3" />
+							</InputGroupButton>
+						)}
+						{isRunning && !isAnsweringQuestion ? (
+							<InputGroupButton
+								size="icon-sm"
+								variant="destructive"
+								onClick={handleStop}
+								className="size-7 cursor-pointer"
 								aria-label="Stop task"
 								title="Stop task"
 							>
@@ -221,8 +309,8 @@ export default function App() {
 								onClick={() => handleSubmit()}
 								disabled={!inputValue.trim()}
 								className="size-7 cursor-pointer"
-								aria-label="Send"
-								title="Send"
+								aria-label={pendingQuestion ? 'Submit answer' : 'Send'}
+								title={pendingQuestion ? '提交回答' : '发送'}
 							>
 								<Send className="size-3" />
 							</InputGroupButton>

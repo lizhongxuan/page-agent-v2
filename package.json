@@ -33,6 +33,7 @@
         "build:libs": "node scripts/build-libs.js",
         "build:website": "npm run build:website --workspace=@page-agent/website",
         "build:ext": "npm run zip -w @page-agent/ext",
+        "test": "vitest run",
         "version": "node scripts/sync-version.js",
         "postpublish": "npm run postpublish --workspaces --if-present",
         "typecheck": "tsc --noEmit -p tsconfig.typecheck.json && tsc --noEmit -p packages/extension/tsconfig.json",
@@ -47,6 +48,7 @@
         "@eslint-react/eslint-plugin": "^4.2.3",
         "@eslint/js": "^10.0.1",
         "@microsoft/api-extractor": "^7.58.7",
+        "@playwright/test": "^1.60.0",
         "@tailwindcss/vite": "^4.3.0",
         "@trivago/prettier-plugin-sort-imports": "^6.0.2",
         "@types/node": "^25.6.0",
@@ -57,13 +59,15 @@
         "eslint": "^10.2.0",
         "globals": "^17.5.0",
         "husky": "^9.1.7",
+        "jsdom": "^29.1.1",
         "lint-staged": "^16.4.0",
         "prettier": "^3.8.2",
         "typescript": "^6.0.2",
         "typescript-eslint": "^8.59.2",
         "unplugin-dts": "^1.0.0",
         "vite": "^8.0.12",
-        "vite-plugin-css-injected-by-js": "^5.0.1"
+        "vite-plugin-css-injected-by-js": "^5.0.1",
+        "vitest": "^4.1.7"
     },
     "overrides": {
         "typescript": "^6.0.2"

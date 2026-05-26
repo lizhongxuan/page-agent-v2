@@ -11,6 +11,7 @@ export default defineConfig([
 		'packages/*/src/components/ui',
 		'**/.wxt',
 		'**/.output',
+		'test-results',
 	]),
 	{
 		files: ['**/*.{ts,tsx}'],

@@ -166,7 +166,7 @@ export class HubWs {
 		}
 
 		const ok = window.confirm(
-			'An external application is requesting to control your browser via Page Agent Ext.\nAllow this session?'
+			'An external application is requesting to control your browser via AIOPS Page Ext.\nAllow this session?'
 		)
 		if (ok) this.#approved = true
 		return ok

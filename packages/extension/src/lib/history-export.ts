@@ -1,5 +1,9 @@
 import type { HistoricalEvent } from '@page-agent/core'
 
+import { exportPlaywrightProject } from '../webops/playwright/PlaywrightExporter'
+import type { RecordedSession } from '../webops/recorder/actionEvents'
+import { createZipBlob } from './zip'
+
 const EXPORT_FILE_PREFIX = 'page-agent-history'
 const MAX_TASK_SLUG_LENGTH = 40
 
@@ -32,6 +36,43 @@ export function downloadHistoryExport(
 	link.click()
 
 	URL.revokeObjectURL(url)
+}
+
+export function downloadPlaywrightExport(
+	task: string,
+	createdAt: number,
+	webOpsSession: RecordedSession
+): void {
+	const { filename, blob } = buildPlaywrightExport(task, createdAt, webOpsSession)
+	const url = URL.createObjectURL(blob)
+	const link = document.createElement('a')
+
+	link.href = url
+	link.download = filename
+	link.click()
+
+	URL.revokeObjectURL(url)
+}
+
+export function buildPlaywrightExport(
+	task: string,
+	createdAt: number,
+	webOpsSession: RecordedSession
+): { filename: string; blob: Blob } {
+	const filename = buildPlaywrightExportFilename(task, createdAt)
+	const files = exportPlaywrightProject(webOpsSession)
+	const blob = createZipBlob(files)
+
+	return { filename, blob }
+}
+
+function buildPlaywrightExportFilename(task: string, createdAt: number): string {
+	const taskSlug = sanitizeTaskForFilename(task)
+	const timestamp = formatTimestampForFilename(createdAt)
+
+	return taskSlug
+		? `page-agent-v2-replay-${taskSlug}-${timestamp}.zip`
+		: `page-agent-v2-replay-${timestamp}.zip`
 }
 
 function sanitizeTaskForFilename(task: string): string {

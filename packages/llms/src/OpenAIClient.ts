@@ -111,7 +111,7 @@ export class OpenAIClient implements LLMClient {
 		}
 
 		// 4. Parse and validate response
-		const data = await response.json()
+		const data = await readJsonResponse(response)
 
 		const choice = data.choices?.[0]
 		if (!choice) {
@@ -238,5 +238,27 @@ export class OpenAIClient implements LLMClient {
 			rawResponse: data,
 			rawRequest: finalRequestBody,
 		}
+	}
+}
+
+async function readJsonResponse(response: Response): Promise<any> {
+	const copy = response.clone()
+
+	try {
+		return await response.json()
+	} catch (error) {
+		const contentType = response.headers.get('content-type') || 'unknown'
+		const bodyPreview = await copy
+			.text()
+			.then((body) => body.replace(/\s+/g, ' ').slice(0, 180))
+			.catch(() => '')
+
+		throw new InvokeError(
+			InvokeErrorTypes.UNKNOWN,
+			`LLM API returned non-JSON response (HTTP ${response.status}, content-type: ${contentType}). ` +
+				(bodyPreview ? `Body preview: ${bodyPreview}` : 'No body preview available.'),
+			error,
+			{ status: response.status, contentType, bodyPreview }
+		)
 	}
 }

@@ -9,6 +9,11 @@ import chalk from 'chalk'
 import * as z from 'zod/v4'
 
 import SYSTEM_PROMPT from './prompts/system_prompt.md?raw'
+import {
+	createSearchExplorationState,
+	observeSearchPage,
+	shouldBlockSearchPaginationClick,
+} from './searchExplorationGuard'
 import { tools } from './tools'
 import type {
 	AgentActivity,
@@ -92,6 +97,8 @@ export class PageAgentCore extends EventTarget {
 		lastURL: '',
 		/** Browser state */
 		browserState: null as BrowserState | null,
+		/** Prevent open-ended search result pagination from running indefinitely. */
+		searchExploration: createSearchExplorationState(),
 	}
 
 	constructor(config: PageAgentCoreConfig) {
@@ -225,7 +232,12 @@ export class PageAgentCore extends EventTarget {
 		this.#observations = []
 
 		// Reset internal states
-		this.#states = { totalWaitTime: 0, lastURL: '', browserState: null }
+		this.#states = {
+			totalWaitTime: 0,
+			lastURL: '',
+			browserState: null,
+			searchExploration: createSearchExplorationState(),
+		}
 
 		let step = 0
 
@@ -406,6 +418,22 @@ export class PageAgentCore extends EventTarget {
 
 				console.log(chalk.blue.bold(`Executing tool: ${toolName}`), toolInput)
 
+				if (toolName === 'click_element_by_index') {
+					const searchGuardMessage = shouldBlockSearchPaginationClick({
+						state: this.#states.searchExploration,
+						task: this.task,
+						browserContent: this.#states.browserState?.content || '',
+						index: Number(toolInput?.index),
+					})
+					if (searchGuardMessage) {
+						this.pushObservation(searchGuardMessage)
+						return {
+							input,
+							output: `⚠️ ${searchGuardMessage}`,
+						}
+					}
+				}
+
 				// Emit executing activity
 				this.#emitActivity({ type: 'executing', tool: toolName, input: toolInput })
 
@@ -523,6 +551,15 @@ export class PageAgentCore extends EventTarget {
 			this.pushObservation(`Page navigated to → ${currentURL}`)
 			this.#states.lastURL = currentURL
 			await waitFor(0.5) // wait for page to stabilize
+		}
+
+		const searchObservation = observeSearchPage(
+			this.#states.searchExploration,
+			currentURL,
+			this.task
+		)
+		if (searchObservation) {
+			this.pushObservation(searchObservation)
 		}
 
 		// Remaining steps warning

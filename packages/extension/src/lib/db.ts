@@ -1,6 +1,8 @@
 import type { HistoricalEvent } from '@page-agent/core'
 import { type DBSchema, type IDBPDatabase, openDB } from 'idb'
 
+import type { RecordedSession } from '@/webops/recorder/actionEvents'
+
 const DB_NAME = 'page-agent-ext'
 const DB_VERSION = 1
 
@@ -10,6 +12,7 @@ export interface SessionRecord {
 	history: HistoricalEvent[]
 	status: 'completed' | 'error'
 	createdAt: number
+	webOpsSession?: RecordedSession
 }
 
 interface PageAgentDB extends DBSchema {

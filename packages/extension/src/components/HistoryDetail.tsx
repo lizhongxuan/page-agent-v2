@@ -1,8 +1,9 @@
-import { ArrowLeft, RotateCcw, Trash2 } from 'lucide-react'
+import { ArrowLeft, Download, RotateCcw, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { type SessionRecord, deleteSession, getSession } from '@/lib/db'
+import { downloadPlaywrightExport } from '@/lib/history-export'
 
 import { EventCard } from './cards'
 
@@ -65,6 +66,18 @@ export function HistoryDetail({
 						<Trash2 className="size-3" />
 						Delete
 					</button>
+					{session.webOpsSession && (
+						<button
+							type="button"
+							onClick={() =>
+								downloadPlaywrightExport(session.task, session.createdAt, session.webOpsSession!)
+							}
+							className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+						>
+							<Download className="size-3" />
+							导出 Playwright
+						</button>
+					)}
 				</div>
 			</div>
 

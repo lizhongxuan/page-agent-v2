@@ -1,6 +1,11 @@
 import type { BrowserState } from '@page-agent/page-controller'
 
+import type { InteractionEvent, InteractionResponse } from '@/webops/interactions/interactionTypes'
+import type { RecordedActionTarget, RecordedActionType } from '@/webops/recorder/actionEvents'
+import { recordWebOpsAction } from '@/webops/recorder/runtimeSession'
+
 import type { TabsController } from './TabsController'
+import { normalizeBrowserStateResponse } from './browserState'
 
 const PREFIX = '[RemotePageController]'
 
@@ -71,11 +76,12 @@ export class RemotePageController {
 				footer: '',
 			}
 		} else {
-			browserState = await sendMessage({
+			const response = await sendMessage({
 				type: 'PAGE_CONTROL',
 				action: 'get_browser_state',
 				targetTabId: this.currentTabId,
 			})
+			browserState = normalizeBrowserStateResponse(response, currentUrl, currentTitle)
 		}
 
 		const sum = await this.tabsController.summarizeTabs()
@@ -111,18 +117,29 @@ export class RemotePageController {
 	}
 
 	async clickElement(...args: any[]): Promise<DomActionReturn> {
+		await this.publishDomActionSpotlight('click_element', args)
+		const target = await this.getDomActionTarget(args)
 		const res = await this.remoteCallDomAction('click_element', args)
+		await this.recordDomAction('click_element', args, res, target)
 		// @note may cause page navigation, wait for 1 second to ensure the page loading started
 		await new Promise((resolve) => setTimeout(resolve, 1000))
 		return res
 	}
 
 	async inputText(...args: any[]): Promise<DomActionReturn> {
-		return this.remoteCallDomAction('input_text', args)
+		await this.publishDomActionSpotlight('input_text', args)
+		const target = await this.getDomActionTarget(args)
+		const res = await this.remoteCallDomAction('input_text', args)
+		await this.recordDomAction('input_text', args, res, target)
+		return res
 	}
 
 	async selectOption(...args: any[]): Promise<DomActionReturn> {
-		return this.remoteCallDomAction('select_option', args)
+		await this.publishDomActionSpotlight('select_option', args)
+		const target = await this.getDomActionTarget(args)
+		const res = await this.remoteCallDomAction('select_option', args)
+		await this.recordDomAction('select_option', args, res, target)
+		return res
 	}
 
 	async scroll(...args: any[]): Promise<DomActionReturn> {
@@ -135,6 +152,22 @@ export class RemotePageController {
 
 	async executeJavascript(...args: any[]): Promise<DomActionReturn> {
 		return this.remoteCallDomAction('execute_javascript', args)
+	}
+
+	async requestInteraction(
+		event: InteractionEvent,
+		timeoutMs: number = 600_000
+	): Promise<InteractionResponse> {
+		if (!this.currentTabId || !isContentScriptAllowed(await this.getCurrentUrl())) {
+			return { type: 'cancelled', reason: 'current_page_not_available' }
+		}
+
+		return sendMessage({
+			type: 'PAGE_CONTROL',
+			action: 'webops_interaction_request',
+			targetTabId: this.currentTabId,
+			payload: { event, timeoutMs },
+		})
 	}
 
 	/** @note Managed by content script via storage polling. */
@@ -164,6 +197,109 @@ export class RemotePageController {
 			payload,
 		})
 	}
+
+	private async publishInteraction(event: InteractionEvent) {
+		if (!this.currentTabId) return
+		if (!isContentScriptAllowed(await this.getCurrentUrl())) return
+
+		await sendMessage({
+			type: 'PAGE_CONTROL',
+			action: 'webops_interaction',
+			targetTabId: this.currentTabId,
+			payload: event,
+		})
+	}
+
+	private async publishDomActionSpotlight(action: string, payload: any[]) {
+		const elementIndex = Number(payload[0])
+		if (!Number.isFinite(elementIndex)) return
+
+		const event = getSpotlightEvent(action, elementIndex)
+		if (!event) return
+
+		await this.publishInteraction(event)
+	}
+
+	private async getElementSnapshot(index: number): Promise<RecordedActionTarget | undefined> {
+		if (!this.currentTabId) return undefined
+
+		return sendMessage({
+			type: 'PAGE_CONTROL',
+			action: 'get_element_snapshot',
+			targetTabId: this.currentTabId,
+			payload: [index],
+		})
+	}
+
+	private async getDomActionTarget(payload: any[]): Promise<RecordedActionTarget | undefined> {
+		const elementIndex = Number(payload[0])
+		if (!Number.isFinite(elementIndex)) return undefined
+		return this.getElementSnapshot(elementIndex)
+	}
+
+	private async recordDomAction(
+		action: string,
+		payload: any[],
+		result: DomActionReturn,
+		target?: RecordedActionTarget
+	) {
+		const type = toRecordedActionType(action)
+		if (!type) return
+
+		const elementIndex = Number(payload[0])
+		const currentUrl = await this.getCurrentUrl()
+		const currentTitle = await this.getCurrentTitle()
+
+		recordWebOpsAction({
+			id: crypto.randomUUID(),
+			type,
+			timestamp: Date.now(),
+			pageUrl: currentUrl,
+			pageTitle: currentTitle,
+			target: target ?? (Number.isFinite(elementIndex) ? { elementIndex } : undefined),
+			value: typeof payload[1] === 'string' ? payload[1] : undefined,
+			result: result.success ? 'success' : 'failed',
+			note: result.message,
+		})
+	}
+}
+
+function getSpotlightEvent(action: string, elementIndex: number): InteractionEvent | undefined {
+	if (action === 'click_element') {
+		return {
+			type: 'spotlight',
+			elementIndex,
+			action: 'click',
+			message: '准备点击页面元素',
+		}
+	}
+
+	if (action === 'input_text') {
+		return {
+			type: 'spotlight',
+			elementIndex,
+			action: 'input',
+			message: '准备在页面输入内容',
+		}
+	}
+
+	if (action === 'select_option') {
+		return {
+			type: 'spotlight',
+			elementIndex,
+			action: 'select',
+			message: '准备选择页面选项',
+		}
+	}
+
+	return undefined
+}
+
+function toRecordedActionType(action: string): RecordedActionType | undefined {
+	if (action === 'click_element') return 'click'
+	if (action === 'input_text') return 'input'
+	if (action === 'select_option') return 'select'
+	return undefined
 }
 
 interface DomActionReturn {

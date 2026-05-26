@@ -1,11 +1,11 @@
 {
     "extName": {
-        "message": "Page Agent Ext"
+        "message": "AIOPS Page Ext"
     },
     "extDescription": {
         "message": "AI-powered browser automation assistant. Control web pages with natural language."
     },
     "extActionTitle": {
-        "message": "Open Page Agent"
+        "message": "Open AIOPS Page Ext"
     }
 }
