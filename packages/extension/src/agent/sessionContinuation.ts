@@ -1,6 +1,37 @@
+import type {
+	BusinessObjectRef,
+	ContinuationDecision,
+	HistoricalEvent,
+	ResolveContinuationInput,
+} from '@page-agent/core'
+
 export interface SessionContinuationInput {
 	previousTask: string
 	userMessage: string
+}
+
+export type SessionContinuationDecisionContext = Omit<ResolveContinuationInput, 'userMessage'> & {
+	userMessage?: string
+}
+
+export interface ContinuationResolverLike {
+	resolve(input: ResolveContinuationInput): ContinuationDecision
+}
+
+export interface ResolvedSessionContinuationInput {
+	task: string
+	displayTask?: string
+	carryHistory?: HistoricalEvent[]
+	context?: SessionContinuationDecisionContext
+	decision?: ContinuationDecision
+	resolver?: ContinuationResolverLike
+}
+
+export interface ResolvedSessionContinuation {
+	task: string
+	displayTask?: string
+	carryHistory?: HistoricalEvent[]
+	decision?: ContinuationDecision
 }
 
 export function buildSessionContinuationTask({
@@ -20,4 +51,62 @@ export function buildSessionContinuationTask({
 
 export function formatSessionDisplayTask(previousTask: string, userMessage: string): string {
 	return `${previousTask}\n补充：${userMessage}`
+}
+
+export function toContinuationResolverInput(
+	context: SessionContinuationDecisionContext
+): ResolveContinuationInput {
+	return {
+		previousTask: context.previousTask,
+		userMessage: context.userMessage ?? '',
+		pendingQuestion: context.pendingQuestion,
+		currentUrl: context.currentUrl,
+		currentTitle: context.currentTitle,
+		previousUrl: context.previousUrl,
+		previousTitle: context.previousTitle,
+		previousBusinessObjects: context.previousBusinessObjects as BusinessObjectRef[] | undefined,
+		hasUnconfirmedRisk: context.hasUnconfirmedRisk,
+	}
+}
+
+export function buildResolvedSessionContinuation({
+	task,
+	displayTask,
+	carryHistory,
+	context,
+	decision,
+	resolver,
+}: ResolvedSessionContinuationInput): ResolvedSessionContinuation {
+	const resolvedDecision = decision ?? resolveContinuationDecision(context, resolver)
+	if (!resolvedDecision) {
+		return { task, displayTask, carryHistory }
+	}
+
+	if (
+		resolvedDecision.mode === 'new_task_same_page' ||
+		resolvedDecision.mode === 'fresh_task' ||
+		resolvedDecision.requiresUserConfirmation
+	) {
+		const freshTask = context?.userMessage?.trim() || task
+		return {
+			task: freshTask,
+			displayTask: freshTask,
+			decision: resolvedDecision,
+		}
+	}
+
+	return {
+		task,
+		displayTask,
+		carryHistory,
+		decision: resolvedDecision,
+	}
+}
+
+function resolveContinuationDecision(
+	context: SessionContinuationDecisionContext | undefined,
+	resolver: ContinuationResolverLike | undefined
+): ContinuationDecision | undefined {
+	if (!context || !resolver) return undefined
+	return resolver.resolve(toContinuationResolverInput(context))
 }

@@ -20,6 +20,11 @@ import type { RecordedSession } from '@/webops/recorder/actionEvents'
 import { MultiPageAgent } from './MultiPageAgent'
 import { type PendingUserQuestion, createAskUserBridge } from './askUserBridge'
 import { DEMO_CONFIG, migrateLegacyEndpoint } from './constants'
+import {
+	type ContinuationResolverLike,
+	type SessionContinuationDecisionContext,
+	buildResolvedSessionContinuation,
+} from './sessionContinuation'
 
 /** Language preference: undefined means follow system */
 export type LanguagePreference = SupportedLanguage | undefined
@@ -55,6 +60,9 @@ export interface UseAgentResult {
 export interface ExecuteOptions {
 	displayTask?: string
 	carryHistory?: HistoricalEvent[]
+	continuationContext?: SessionContinuationDecisionContext
+	continuationDecision?: import('@page-agent/core').ContinuationDecision
+	continuationResolver?: ContinuationResolverLike
 }
 
 export function useAgent(): UseAgentResult {
@@ -143,11 +151,19 @@ export function useAgent(): UseAgentResult {
 		if (!agent) throw new Error('Agent not initialized')
 
 		askBridgeRef.current?.cancel('用户开始了新任务，上一轮问题已取消。')
-		historyPrefixRef.current = options.carryHistory ?? []
-		setCurrentTask(options.displayTask ?? task)
+		const resolvedContinuation = buildResolvedSessionContinuation({
+			task,
+			displayTask: options.displayTask,
+			carryHistory: options.carryHistory,
+			context: options.continuationContext,
+			decision: options.continuationDecision,
+			resolver: options.continuationResolver,
+		})
+		historyPrefixRef.current = resolvedContinuation.carryHistory ?? []
+		setCurrentTask(resolvedContinuation.displayTask ?? resolvedContinuation.task)
 		setHistory([...historyPrefixRef.current])
 		setWebOpsSession(undefined)
-		const result = await agent.execute(task)
+		const result = await agent.execute(resolvedContinuation.task)
 		setWebOpsSession(agent.getWebOpsSession() ?? null)
 		return result
 	}, [])
