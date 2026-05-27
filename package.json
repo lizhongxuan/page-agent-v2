@@ -33,6 +33,7 @@
         "build:libs": "node scripts/build-libs.js",
         "build:website": "npm run build:website --workspace=@page-agent/website",
         "build:ext": "npm run zip -w @page-agent/ext",
+        "build:ext:desktop": "node scripts/build-extension-to-desktop.js",
         "test": "vitest run",
         "version": "node scripts/sync-version.js",
         "postpublish": "npm run postpublish --workspaces --if-present",

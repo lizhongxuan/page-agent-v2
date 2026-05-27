@@ -5,6 +5,7 @@ import {
 	buildResolvedSessionContinuation,
 	buildSessionContinuationTask,
 	formatSessionDisplayTask,
+	getSessionContinuationBaseTask,
 	toContinuationResolverInput,
 } from './sessionContinuation'
 
@@ -21,6 +22,18 @@ describe('session continuation', () => {
 		expect(formatSessionDisplayTask('搜索百度最近新闻', '多搜索一下')).toBe(
 			'搜索百度最近新闻\n补充：多搜索一下'
 		)
+	})
+
+	it('keeps repeated continuation task display bounded to the latest supplement', () => {
+		const firstDisplay = formatSessionDisplayTask('搜索A股今天行情', '分析什么股好')
+		const secondDisplay = formatSessionDisplayTask(firstDisplay, '那pcb板块呢?')
+		const thirdDisplay = formatSessionDisplayTask(secondDisplay, '再看财报')
+
+		expect(getSessionContinuationBaseTask(thirdDisplay)).toBe('搜索A股今天行情')
+		expect(secondDisplay).toBe('搜索A股今天行情\n补充：那pcb板块呢?')
+		expect(thirdDisplay).toBe('搜索A股今天行情\n补充：再看财报')
+		expect(thirdDisplay).not.toContain('分析什么股好')
+		expect(thirdDisplay).not.toContain('那pcb板块呢?')
 	})
 
 	it('builds resolver input from extension continuation context', () => {

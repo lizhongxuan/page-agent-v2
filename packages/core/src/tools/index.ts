@@ -132,7 +132,7 @@ tools.set(
 	'scroll',
 	tool({
 		description:
-			'Scroll vertically. Without index: scrolls the document. With index: scrolls the container at that index (or its nearest scrollable ancestor). Use index of a data-scrollable element to scroll a specific area.',
+			'Scroll vertically. Omit index to scroll the page/document. Use index only for an element marked data-scrollable when you need to scroll that specific area. If pixels is 0 or omitted, num_pages controls the scroll distance.',
 		inputSchema: z.object({
 			down: z.boolean().default(true),
 			num_pages: z.number().min(0).max(10).optional().default(0.1),

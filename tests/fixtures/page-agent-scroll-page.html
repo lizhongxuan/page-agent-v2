@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Page Agent Scroll Regression Fixture</title>
+		<style>
+			:root {
+				color: #172033;
+				background: #f7f8fb;
+				font-family:
+					Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+					sans-serif;
+			}
+
+			body {
+				margin: 0;
+				min-height: 3200px;
+			}
+
+			header {
+				background: #ffffff;
+				border-bottom: 1px solid #dde3ef;
+				padding: 28px 36px;
+			}
+
+			h1,
+			h2,
+			p {
+				margin: 0;
+			}
+
+			h1 {
+				font-size: 28px;
+				font-weight: 720;
+			}
+
+			.search-row {
+				display: flex;
+				align-items: center;
+				gap: 16px;
+				margin-top: 20px;
+			}
+
+			textarea {
+				box-sizing: border-box;
+				width: min(560px, 65vw);
+				height: 78px;
+				resize: none;
+				border: 1px solid #9fb1ce;
+				border-radius: 8px;
+				padding: 14px 16px;
+				font: inherit;
+				background: #ffffff;
+			}
+
+			a {
+				color: #1c5fc4;
+				font-weight: 650;
+			}
+
+			main {
+				max-width: 860px;
+				padding: 36px;
+			}
+
+			.result {
+				background: #ffffff;
+				border: 1px solid #dde3ef;
+				border-radius: 8px;
+				margin-bottom: 28px;
+				padding: 20px;
+			}
+
+			.spacer {
+				height: 1900px;
+			}
+
+			#target {
+				background: #ffffff;
+				border: 2px solid #1c8c54;
+				border-radius: 8px;
+				padding: 28px;
+			}
+		</style>
+	</head>
+	<body>
+		<header>
+			<h1>Scroll Regression Fixture</h1>
+			<div class="search-row">
+				<textarea aria-label="Search query">A stock market search text area</textarea>
+				<a href="#top-result">Top result link</a>
+			</div>
+		</header>
+		<main>
+			<section id="top-result" class="result">
+				<h2>Visible search result</h2>
+				<p>
+					This fixture intentionally starts with a textarea and a link. They are interactive
+					but not scrollable containers.
+				</p>
+			</section>
+			<section class="result">
+				<h2>More visible content</h2>
+				<p>The page itself has plenty of content below the fold.</p>
+			</section>
+			<div class="spacer"></div>
+			<section id="target" aria-label="Scroll target">
+				<h2>SCROLL_TARGET_20260527</h2>
+				<p>The agent must scroll the page to discover this marker.</p>
+			</section>
+		</main>
+	</body>
+</html>

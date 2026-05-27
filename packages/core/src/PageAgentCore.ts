@@ -15,7 +15,7 @@ import {
 	observeSearchPage,
 	shouldBlockSearchPaginationClick,
 } from './searchExplorationGuard'
-import { tools } from './tools'
+import { type PageAgentTool, tools } from './tools'
 import type {
 	AgentActivity,
 	AgentConfig,
@@ -24,6 +24,7 @@ import type {
 	AgentStepEvent,
 	ExecutionResult,
 	HistoricalEvent,
+	MacroToolActionResult,
 	MacroToolInput,
 	MacroToolResult,
 } from './types'
@@ -249,9 +250,8 @@ export class PageAgentCore extends EventTarget {
 			searchExploration: createSearchExplorationState(),
 		}
 
-		let step = 0
-
 		while (true) {
+			const step = this.#getCompletedStepCount()
 			try {
 				console.group(`step: ${step}`)
 
@@ -287,32 +287,35 @@ export class PageAgentCore extends EventTarget {
 
 				const macroResult = result.toolResult as MacroToolResult
 				const input = macroResult.input
-				const output = macroResult.output
 				const reflection: Partial<AgentReflection> = {
 					evaluation_previous_goal: input.evaluation_previous_goal,
 					memory: input.memory,
 					next_goal: input.next_goal,
 				}
-				const actionName = Object.keys(input.action)[0]
-				const action: AgentStepEvent['action'] = {
-					name: actionName,
-					input: input.action[actionName],
-					output: output,
-				}
+				const actionResults =
+					macroResult.actions ?? this.#toActionResults(input.action, macroResult.output)
+				const stepEvents = actionResults.map((actionResult, index) => {
+					return {
+						type: 'step',
+						stepIndex: step + index,
+						reflection,
+						action: {
+							name: actionResult.name,
+							input: actionResult.input,
+							output: actionResult.output,
+						},
+						usage: index === 0 ? result.usage : this.#emptyUsage(),
+						rawResponse: index === 0 ? result.rawResponse : undefined,
+						rawRequest: index === 0 ? result.rawRequest : undefined,
+					} as AgentStepEvent
+				})
 
-				const stepEvent = {
-					type: 'step',
-					stepIndex: step,
-					reflection,
-					action,
-					usage: result.usage,
-					rawResponse: result.rawResponse,
-					rawRequest: result.rawRequest,
-				} as AgentStepEvent
-				this.history.push(stepEvent)
-				this.#contextRuntime?.recordStep(stepEvent)
-				if (this.#contextRuntime && this.config.contextStore) {
-					await this.config.contextStore.save(this.taskId, this.#contextRuntime.toStoredContext())
+				for (const stepEvent of stepEvents) {
+					this.history.push(stepEvent)
+					this.#contextRuntime?.recordStep(stepEvent)
+					if (this.#contextRuntime && this.config.contextStore) {
+						await this.config.contextStore.save(this.taskId, this.#contextRuntime.toStoredContext())
+					}
 				}
 				this.#emitHistoryChange()
 
@@ -324,9 +327,10 @@ export class PageAgentCore extends EventTarget {
 
 				// finish task if done
 
-				if (actionName === 'done') {
-					const success = action.input?.success ?? false
-					const text = action.input?.text || 'no text provided'
+				const doneEvent = stepEvents.find((event) => event.action.name === 'done')
+				if (doneEvent) {
+					const success = doneEvent.action.input?.success ?? false
+					const text = doneEvent.action.input?.text || 'no text provided'
 					console.log(chalk.green.bold('Task completed'), success, text)
 					this.#onDone(success)
 					const result: ExecutionResult = {
@@ -356,8 +360,7 @@ export class PageAgentCore extends EventTarget {
 				return result
 			}
 
-			step++
-			if (step > this.config.maxSteps) {
+			if (this.#getCompletedStepCount() > this.config.maxSteps) {
 				const errorMessage = 'Step count exceeded maximum limit'
 				this.history.push({ type: 'error', message: errorMessage })
 				this.#emitHistoryChange()
@@ -391,7 +394,10 @@ export class PageAgentCore extends EventTarget {
 			return z.object({ [toolName]: tool.inputSchema }).describe(tool.description)
 		})
 
-		const actionSchema = z.union(actionSchemas as unknown as [z.ZodType, z.ZodType, ...z.ZodType[]])
+		const singleActionSchema = z.union(
+			actionSchemas as unknown as [z.ZodType, z.ZodType, ...z.ZodType[]]
+		)
+		const actionSchema = z.union([singleActionSchema, z.array(singleActionSchema).min(1).max(24)])
 
 		const macroToolSchema = z.object({
 			// thinking: z.string().optional(),
@@ -409,10 +415,11 @@ export class PageAgentCore extends EventTarget {
 				if (this.#abortController.signal.aborted) throw new Error('AbortError')
 
 				console.log(chalk.blue.bold('MacroTool input'), input)
-				const action = input.action
-
-				const toolName = Object.keys(action)[0]
-				const toolInput = action[toolName]
+				const actions = Array.isArray(input.action) ? input.action : [input.action]
+				const containsDone = actions.some((action) => Object.keys(action)[0] === 'done')
+				if (containsDone && actions.length > 1) {
+					throw new Error('The done action must be returned as a single action.')
+				}
 
 				// Build reflection text, only include non-empty fields
 				const reflectionLines: string[] = []
@@ -427,62 +434,113 @@ export class PageAgentCore extends EventTarget {
 					console.log(reflectionText)
 				}
 
-				// Find the corresponding tool
-				const tool = tools.get(toolName)
-				assert(tool, `Tool ${toolName} not found`)
-
-				console.log(chalk.blue.bold(`Executing tool: ${toolName}`), toolInput)
-
-				if (toolName === 'click_element_by_index') {
-					const searchGuardMessage = shouldBlockSearchPaginationClick({
-						state: this.#states.searchExploration,
-						task: this.task,
-						browserContent: this.#states.browserState?.content || '',
-						index: Number(toolInput?.index),
-					})
-					if (searchGuardMessage) {
-						this.pushObservation(searchGuardMessage)
-						return {
-							input,
-							output: `⚠️ ${searchGuardMessage}`,
-						}
-					}
-				}
-
-				// Emit executing activity
-				this.#emitActivity({ type: 'executing', tool: toolName, input: toolInput })
-
-				const startTime = Date.now()
-
-				// Execute tool, bind `this` to PageAgent
-				const result = await tool.execute.bind(this)(toolInput)
-
-				const duration = Date.now() - startTime
-				console.log(chalk.green.bold(`Tool (${toolName}) executed for ${duration}ms`), result)
-
-				// Emit executed activity
-				this.#emitActivity({
-					type: 'executed',
-					tool: toolName,
-					input: toolInput,
-					output: result,
-					duration,
-				})
-
-				// counting wait time
-				if (toolName === 'wait') {
-					this.#states.totalWaitTime += toolInput?.seconds || 0
-				} else {
-					this.#states.totalWaitTime = 0
+				const actionResults: MacroToolActionResult[] = []
+				for (const action of actions) {
+					const actionResult = await this.#executeAction(action, tools)
+					actionResults.push(actionResult)
+					if (this.#shouldStopBatch(actionResult.output)) break
 				}
 
 				// Return structured result
 				return {
 					input,
-					output: result,
+					output: actionResults.map((action) => action.output).join('\n'),
+					actions: actionResults,
 				}
 			},
 		}
+	}
+
+	async #executeAction(
+		action: Record<string, any>,
+		tools: Map<string, PageAgentTool>
+	): Promise<MacroToolActionResult> {
+		const toolName = Object.keys(action)[0]
+		const toolInput = action[toolName]
+
+		// Find the corresponding tool
+		const tool = tools.get(toolName)
+		assert(tool, `Tool ${toolName} not found`)
+
+		console.log(chalk.blue.bold(`Executing tool: ${toolName}`), toolInput)
+
+		if (toolName === 'click_element_by_index') {
+			const searchGuardMessage = shouldBlockSearchPaginationClick({
+				state: this.#states.searchExploration,
+				task: this.task,
+				browserContent: this.#states.browserState?.content || '',
+				index: Number(toolInput?.index),
+			})
+			if (searchGuardMessage) {
+				this.pushObservation(searchGuardMessage)
+				return {
+					name: toolName,
+					input: toolInput,
+					output: `⚠️ ${searchGuardMessage}`,
+				}
+			}
+		}
+
+		// Emit executing activity
+		this.#emitActivity({ type: 'executing', tool: toolName, input: toolInput })
+
+		const startTime = Date.now()
+
+		// Execute tool, bind `this` to PageAgent
+		const result = await tool.execute.bind(this)(toolInput)
+
+		const duration = Date.now() - startTime
+		console.log(chalk.green.bold(`Tool (${toolName}) executed for ${duration}ms`), result)
+
+		// Emit executed activity
+		this.#emitActivity({
+			type: 'executed',
+			tool: toolName,
+			input: toolInput,
+			output: result,
+			duration,
+		})
+
+		// counting wait time
+		if (toolName === 'wait') {
+			this.#states.totalWaitTime += toolInput?.seconds || 0
+		} else {
+			this.#states.totalWaitTime = 0
+		}
+
+		return {
+			name: toolName,
+			input: toolInput,
+			output: result,
+		}
+	}
+
+	#toActionResults(action: MacroToolInput['action'], output: string): MacroToolActionResult[] {
+		const actions = Array.isArray(action) ? action : [action]
+		return actions.map((item) => {
+			const name = Object.keys(item)[0]
+			return {
+				name,
+				input: item[name],
+				output,
+			}
+		})
+	}
+
+	#emptyUsage(): AgentStepEvent['usage'] {
+		return {
+			promptTokens: 0,
+			completionTokens: 0,
+			totalTokens: 0,
+		}
+	}
+
+	#getCompletedStepCount(): number {
+		return this.history.filter((event) => event.type === 'step').length
+	}
+
+	#shouldStopBatch(output: string): boolean {
+		return output.startsWith('❌') || output.startsWith('⚠️')
 	}
 
 	/**

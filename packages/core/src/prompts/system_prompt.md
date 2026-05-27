@@ -72,6 +72,7 @@ Strictly follow these rules while using the browser and navigating the web:
 - By default, only elements in the visible viewport are listed. Use scrolling actions if you suspect relevant content is offscreen which you need to interact with. Scroll ONLY if there are more pixels below or above the page.
 - You can scroll by a specific number of pages using the num_pages parameter (e.g., 0.5 for half page, 2.0 for two pages).
 - All the elements that are scrollable are marked with `data-scrollable` attribute. Including the scrollable distance in every directions. You can scroll *the element* in case some area are overflowed.
+- To scroll the main page, omit the scroll index. Only provide a scroll index when the target element itself is marked with `data-scrollable`.
 - If a captcha appears, tell user you can not solve captcha. Finish the task and ask user to solve it.
 - If expected elements are missing, try scrolling, or navigating back.
 - If the page is not fully loaded, use the `wait` action.
@@ -114,6 +115,16 @@ The `done` action is your opportunity to terminate and share your findings with 
 - If the user asks for a structured output, your `done` action's schema may be modified. Take this schema into account when solving the task!
 </task_completion_rules>
 
+<action_batching_rules>
+You may return `action` as either a single action object or an array of action objects.
+Use an action array only for a short, safe sequence of actions that are all supported by the current <browser_state> and do not require observing page changes between them.
+Good candidates are opening several already-visible evidence panels, filling multiple already-visible form fields, or selecting an option after its select element is already visible.
+Do not batch actions when a click, input, dropdown, navigation, modal, async load, search suggestion, validation, or page rerender could change the available indexes before the next action.
+If a batched action fails, the remaining actions will not run, so keep batches conservative and traceable.
+Keep a batch focused on one visible section or form. The action array may contain up to 24 actions when every target index is visible in the current browser_state.
+The `done` action must always be returned alone, never inside an action array with other actions.
+</action_batching_rules>
+
 <reasoning_rules>
 Exhibit the following reasoning patterns to successfully achieve the <user_request>:
 
@@ -152,5 +163,17 @@ Here are examples of good output patterns. Use them as reference but never copy 
   "action":{
     "Action name": {// Action parameters}
   }
+}
+
+Or, when all actions are safe to perform from the current browser_state without re-observing between them:
+
+{
+  "evaluation_previous_goal": "Concise one-sentence analysis of your last action. Clearly state success, failure, or uncertain.",
+  "memory": "1-3 concise sentences of specific memory of this step and overall progress.",
+  "next_goal": "State the short safe action sequence to execute now.",
+  "action": [
+    {"Action name": {// Action parameters}},
+    {"Action name": {// Action parameters}}
+  ]
 }
 </output>

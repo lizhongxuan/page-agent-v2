@@ -18,6 +18,7 @@ import { saveSession } from '@/lib/db'
 import {
 	buildSessionContinuationTask,
 	formatSessionDisplayTask,
+	getSessionContinuationBaseTask,
 } from '../../agent/sessionContinuation'
 import { useAgent } from '../../agent/useAgent'
 
@@ -91,14 +92,15 @@ export default function App() {
 
 			const shouldContinueSession =
 				!options.forceNewSession && (!!currentTask || history.length > 0)
+			const previousTask = getSessionContinuationBaseTask(currentTask || '上一轮浏览器任务')
 			const taskToExecute = shouldContinueSession
 				? buildSessionContinuationTask({
-						previousTask: currentTask || '上一轮浏览器任务',
+						previousTask,
 						userMessage: normalizedTask,
 					})
 				: normalizedTask
 			const displayTask = shouldContinueSession
-				? formatSessionDisplayTask(currentTask || '上一轮浏览器任务', normalizedTask)
+				? formatSessionDisplayTask(previousTask, normalizedTask)
 				: normalizedTask
 			const carryHistory = shouldContinueSession ? history : undefined
 
@@ -184,9 +186,12 @@ export default function App() {
 
 	const isRunning = status === 'running'
 	const isAnsweringQuestion = isRunning && !!pendingQuestion
+	const isHandoverQuestion = pendingQuestion?.kind === 'handover'
 	const showEmptyState = !currentTask && history.length === 0 && !isRunning
 	const inputPlaceholder = pendingQuestion
-		? '请在这里回答 Agent 的问题，Enter 提交后继续'
+		? isHandoverQuestion
+			? '请先在网页里完成输入，完成后点击“继续”'
+			: '请在这里回答 Agent 的问题，Enter 提交后继续'
 		: isRunning
 			? 'Agent 正在执行。点击右侧停止按钮可取消'
 			: '描述你的任务...（Enter 发送）'
@@ -257,7 +262,11 @@ export default function App() {
 						<div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-950">
 							<div className="mb-1 font-semibold">Agent 需要你补充信息</div>
 							<div className="leading-relaxed">{pendingQuestion.question}</div>
-							<div className="mt-2 text-blue-700">请在底部输入框回复，提交后会继续当前任务。</div>
+							<div className="mt-2 text-blue-700">
+								{isHandoverQuestion
+									? '请直接在左侧网页中输入账号、密码或验证码；完成后点击底部继续按钮。'
+									: '请在底部输入框回复，提交后会继续当前任务。'}
+							</div>
 						</div>
 					)}
 
@@ -275,7 +284,7 @@ export default function App() {
 						value={inputValue}
 						onChange={(e) => setInputValue(e.target.value)}
 						onKeyDown={handleKeyDown}
-						readOnly={isRunning && !isAnsweringQuestion}
+						readOnly={(isRunning && !isAnsweringQuestion) || isHandoverQuestion}
 						className={isAnsweringQuestion ? 'text-xs pr-20 min-h-10' : 'text-xs pr-12 min-h-10'}
 					/>
 					<InputGroupAddon align="inline-end" className="absolute bottom-0 right-0 gap-1">
@@ -306,11 +315,28 @@ export default function App() {
 							<InputGroupButton
 								size="icon-sm"
 								variant="default"
-								onClick={() => handleSubmit()}
-								disabled={!inputValue.trim()}
+								onClick={() => {
+									if (isHandoverQuestion) {
+										if (answerQuestion('我已完成页面接管，可以继续。')) {
+											setInputValue('')
+											setView({ name: 'chat' })
+										}
+										return
+									}
+									handleSubmit()
+								}}
+								disabled={!isHandoverQuestion && !inputValue.trim()}
 								className="size-7 cursor-pointer"
-								aria-label={pendingQuestion ? 'Submit answer' : 'Send'}
-								title={pendingQuestion ? '提交回答' : '发送'}
+								aria-label={
+									isHandoverQuestion
+										? 'Continue after handover'
+										: pendingQuestion
+											? 'Submit answer'
+											: 'Send'
+								}
+								title={
+									isHandoverQuestion ? '我已完成，继续' : pendingQuestion ? '提交回答' : '发送'
+								}
 							>
 								<Send className="size-3" />
 							</InputGroupButton>

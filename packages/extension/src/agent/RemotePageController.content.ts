@@ -11,7 +11,15 @@ import type {
 import { WEBOPS_INTERACTION_RESPONSE_EVENT } from '@/webops/interactions/interactionTypes'
 import { webOpsInteractionBus } from '@/webops/interactions/overlayRoot'
 
-import { hidePageLock, showPageLock, withPageLockBypassed } from './pageLock'
+import {
+	hidePageLock,
+	isPageLockSuspended,
+	resumePageLock,
+	showPageLock,
+	suspendPageLock,
+	withPageLockBypassed,
+} from './pageLock'
+import { SIDE_PANEL_HANDOVER_ACTIVE_STORAGE_KEY } from './sidePanelHandover'
 
 export function initPageController() {
 	let pageController: PageController | null = null
@@ -44,14 +52,24 @@ export function initPageController() {
 
 		const isAgentRunning = (await chrome.storage.local.get('isAgentRunning')).isAgentRunning
 		const currentTabId = (await chrome.storage.local.get('currentTabId')).currentTabId
+		const sidePanelHandoverActive = Boolean(
+			(await chrome.storage.local.get(SIDE_PANEL_HANDOVER_ACTIVE_STORAGE_KEY))[
+				SIDE_PANEL_HANDOVER_ACTIVE_STORAGE_KEY
+			]
+		)
 
 		const shouldShowMask = isAgentRunning && agentInTouch && currentTabId === (await myTabIdPromise)
 
 		if (shouldShowMask) {
-			showPageLock()
 			const pc = getPC()
 			pc.initMask()
-			await pc.showMask()
+			if (isPageLockSuspended() || sidePanelHandoverActive) {
+				hidePageLock()
+				await pc.hideMask()
+			} else {
+				showPageLock()
+				await pc.showMask()
+			}
 		} else {
 			hidePageLock()
 			// await getPC().hideMask()
@@ -155,15 +173,25 @@ function waitForInteractionResponse(
 ): Promise<InteractionResponse> {
 	if (!event) return Promise.resolve({ type: 'cancelled', reason: 'missing_interaction_event' })
 
+	const shouldSuspendLock = event.type === 'handover'
+	if (shouldSuspendLock) suspendPageLock()
+
 	webOpsInteractionBus.publish(event)
 
 	const requestId = 'requestId' in event ? event.requestId : undefined
-	if (!requestId) return Promise.resolve({ type: 'completed' })
+	if (!requestId) {
+		if (shouldSuspendLock) resumePageLock()
+		return Promise.resolve({ type: 'completed' })
+	}
 
 	return new Promise((resolve) => {
+		const finish = (response: InteractionResponse) => {
+			if (shouldSuspendLock) resumePageLock()
+			resolve(response)
+		}
 		const timer = window.setTimeout(() => {
 			window.removeEventListener(WEBOPS_INTERACTION_RESPONSE_EVENT, handleResponse)
-			resolve({ type: 'cancelled', reason: 'timeout' })
+			finish({ type: 'cancelled', reason: 'timeout' })
 		}, timeoutMs ?? 600_000)
 
 		function handleResponse(nativeEvent: Event) {
@@ -172,7 +200,7 @@ function waitForInteractionResponse(
 
 			window.clearTimeout(timer)
 			window.removeEventListener(WEBOPS_INTERACTION_RESPONSE_EVENT, handleResponse)
-			resolve(detail.response)
+			finish(detail.response)
 		}
 
 		window.addEventListener(WEBOPS_INTERACTION_RESPONSE_EVENT, handleResponse)

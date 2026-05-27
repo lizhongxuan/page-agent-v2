@@ -326,11 +326,20 @@ export class PageController extends EventTarget {
 
 			this.assertIndexed()
 
-			const scrollAmount = (pixels ?? numPages * window.innerHeight) * (down ? 1 : -1)
+			const scrollDistance = pixels && pixels > 0 ? pixels : numPages * window.innerHeight
+			const scrollAmount = scrollDistance * (down ? 1 : -1)
 
-			const element = index !== undefined ? getElementByIndex(this.selectorMap, index) : null
+			let element: HTMLElement | null = null
+			let missingElementMessage = ''
+			if (index !== undefined) {
+				try {
+					element = getElementByIndex(this.selectorMap, index)
+				} catch (error) {
+					missingElementMessage = `No current element found at index ${index}; falling back to page scroll. `
+				}
+			}
 
-			const message = await scrollVertically(scrollAmount, element)
+			const message = `${missingElementMessage}${await scrollVertically(scrollAmount, element)}`
 
 			return {
 				success: true,

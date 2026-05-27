@@ -6,6 +6,7 @@ import path from 'node:path'
 
 let server: Server
 let origin: string
+const SIDE_PANEL_HANDOVER_ACTIVE_STORAGE_KEY = 'pageAgentSidePanelHandoverActive'
 
 test.beforeAll(async () => {
 	server = createServer((req, res) => {
@@ -71,6 +72,21 @@ test('content script injects WebOps overlay host on normal web pages', async () 
 			.click({ timeout: 700 })
 			.catch(() => {})
 		await expect(page.evaluate(() => window.searchClicked ?? false)).resolves.toBe(false)
+
+		await setSidePanelHandover(extensionWorker, true)
+		await setAgentRunning(extensionWorker, tabId, true)
+		await expect(page.locator('#page-agent-v2-runtime-page-lock')).toHaveCount(0, {
+			timeout: 1000,
+		})
+		await page.getByRole('button', { name: '搜索' }).click()
+		await expect(page.evaluate(() => window.searchClicked ?? false)).resolves.toBe(true)
+		await page.evaluate(() => {
+			window.searchClicked = false
+		})
+		await setSidePanelHandover(extensionWorker, false)
+		await setAgentRunning(extensionWorker, tabId, true)
+		await expect(page.locator('#page-agent-v2-runtime-page-lock')).toBeVisible()
+
 		await setAgentRunning(extensionWorker, tabId, false)
 		await expect(page.locator('#page-agent-v2-runtime-page-lock')).toHaveCount(0)
 
@@ -155,6 +171,15 @@ async function setAgentRunning(worker: Worker, tabId: number, running: boolean) 
 			})
 		},
 		{ running, tabId }
+	)
+}
+
+async function setSidePanelHandover(worker: Worker, active: boolean) {
+	await worker.evaluate(
+		async ({ active, key }) => {
+			await chrome.storage.local.set({ [key]: active })
+		},
+		{ active, key: SIDE_PANEL_HANDOVER_ACTIVE_STORAGE_KEY }
 	)
 }
 

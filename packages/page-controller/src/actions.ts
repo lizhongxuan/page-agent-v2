@@ -274,6 +274,94 @@ export async function scrollIntoViewIfNeeded(element: Element) {
 	}
 }
 
+async function scrollPageOrNearestContainer(scrollAmount: number): Promise<string> {
+	const dy = scrollAmount
+	const bigEnough = (el: HTMLElement) => el.clientHeight >= window.innerHeight * 0.5
+	const canScroll = (el: HTMLElement | null) =>
+		el &&
+		/(auto|scroll|overlay)/.test(getComputedStyle(el).overflowY) &&
+		el.scrollHeight > el.clientHeight &&
+		bigEnough(el)
+
+	// @deprecated Heuristic container search.
+	// Unreliable in multi-panel layouts. Should guide LLMs to use indexed scroll for consistency.
+	// TODO: remove this fallback
+
+	// try to find the nearest scrollable container
+	// document.activeElement is usually body.
+	// After a successful element.focus(), activeElement become the nearest focusable parent
+
+	let el: HTMLElement | null = document.activeElement as HTMLElement | null
+	while (el && !canScroll(el) && el !== document.body) el = el.parentElement
+
+	// Something is wrong if it falls back to global '*' search
+	// TODO: Return error message instead of global '*' search
+
+	el = canScroll(el)
+		? el
+		: Array.from(document.querySelectorAll<HTMLElement>('*')).find(canScroll) ||
+			(document.scrollingElement as HTMLElement) ||
+			(document.documentElement as HTMLElement)
+
+	if (el === document.scrollingElement || el === document.documentElement || el === document.body) {
+		// Page-level scroll
+		const scrollBefore = window.scrollY
+		const scrollMax = document.documentElement.scrollHeight - window.innerHeight
+
+		window.scrollBy(0, dy)
+
+		const scrollAfter = window.scrollY
+		const scrolled = scrollAfter - scrollBefore
+
+		if (Math.abs(scrolled) < 1) {
+			return dy > 0
+				? `⚠️ Already at the bottom of the page, cannot scroll down further.`
+				: `⚠️ Already at the top of the page, cannot scroll up further.`
+		}
+
+		const reachedBottom = dy > 0 && scrollAfter >= scrollMax - 1
+		const reachedTop = dy < 0 && scrollAfter <= 1
+
+		if (reachedBottom) return `✅ Scrolled page by ${scrolled}px. Reached the bottom of the page.`
+		if (reachedTop) return `✅ Scrolled page by ${scrolled}px. Reached the top of the page.`
+		return `✅ Scrolled page by ${scrolled}px.`
+	}
+
+	// Container scroll
+
+	const warningMsg = `The document is not scrollable. Falling back to container scroll.`
+	console.log(`[PageController] ${warningMsg}`)
+
+	const container = el
+	if (!container) {
+		return `⚠️ No scrollable page or container found.`
+	}
+
+	const scrollBefore = container.scrollTop
+	const scrollMax = container.scrollHeight - container.clientHeight
+
+	container.scrollBy({ top: dy, behavior: 'smooth' })
+	await waitFor(0.1)
+
+	const scrollAfter = container.scrollTop
+	const scrolled = scrollAfter - scrollBefore
+
+	if (Math.abs(scrolled) < 1) {
+		return dy > 0
+			? `⚠️ ${warningMsg} Already at the bottom of container (${container.tagName}), cannot scroll down further.`
+			: `⚠️ ${warningMsg} Already at the top of container (${container.tagName}), cannot scroll up further.`
+	}
+
+	const reachedBottom = dy > 0 && scrollAfter >= scrollMax - 1
+	const reachedTop = dy < 0 && scrollAfter <= 1
+
+	if (reachedBottom)
+		return `✅ ${warningMsg} Scrolled container (${container.tagName}) by ${scrolled}px. Reached the bottom.`
+	if (reachedTop)
+		return `✅ ${warningMsg} Scrolled container (${container.tagName}) by ${scrolled}px. Reached the top.`
+	return `✅ ${warningMsg} Scrolled container (${container.tagName}) by ${scrolled}px.`
+}
+
 export async function scrollVertically(scroll_amount: number, element?: HTMLElement | null) {
 	// Element-specific scrolling if element is provided
 	if (element) {
@@ -327,93 +415,14 @@ export async function scrollVertically(scroll_amount: number, element?: HTMLElem
 
 		if (scrollSuccess) {
 			return `Scrolled container (${scrolledElement?.tagName}) by ${scrollDelta}px`
-		} else {
-			return `No scrollable container found for element (${targetElement.tagName})`
 		}
+
+		const fallbackMessage = await scrollPageOrNearestContainer(scroll_amount)
+		return `No scrollable container found for element (${targetElement.tagName}). Falling back to page scroll. ${fallbackMessage}`
 	}
 
 	// Page-level scrolling (default or fallback)
-
-	const dy = scroll_amount
-	const bigEnough = (el: HTMLElement) => el.clientHeight >= window.innerHeight * 0.5
-	const canScroll = (el: HTMLElement | null) =>
-		el &&
-		/(auto|scroll|overlay)/.test(getComputedStyle(el).overflowY) &&
-		el.scrollHeight > el.clientHeight &&
-		bigEnough(el)
-
-	// @deprecated Heuristic container search.
-	// Unreliable in multi-panel layouts. Should guide LLMs to use indexed scroll for consistency.
-	// TODO: remove this fallback
-
-	// try to find the nearest scrollable container
-	// document.activeElement is usually body.
-	// After a successful element.focus(), activeElement become the nearest focusable parent
-
-	let el: HTMLElement | null = document.activeElement as HTMLElement | null
-	while (el && !canScroll(el) && el !== document.body) el = el.parentElement
-
-	// Something is wrong if it falls back to global '*' search
-	// TODO: Return error message instead of global '*' search
-
-	el = canScroll(el)
-		? el
-		: Array.from(document.querySelectorAll<HTMLElement>('*')).find(canScroll) ||
-			(document.scrollingElement as HTMLElement) ||
-			(document.documentElement as HTMLElement)
-
-	if (el === document.scrollingElement || el === document.documentElement || el === document.body) {
-		// Page-level scroll
-		const scrollBefore = window.scrollY
-		const scrollMax = document.documentElement.scrollHeight - window.innerHeight
-
-		window.scrollBy(0, dy)
-
-		const scrollAfter = window.scrollY
-		const scrolled = scrollAfter - scrollBefore
-
-		if (Math.abs(scrolled) < 1) {
-			return dy > 0
-				? `⚠️ Already at the bottom of the page, cannot scroll down further.`
-				: `⚠️ Already at the top of the page, cannot scroll up further.`
-		}
-
-		const reachedBottom = dy > 0 && scrollAfter >= scrollMax - 1
-		const reachedTop = dy < 0 && scrollAfter <= 1
-
-		if (reachedBottom) return `✅ Scrolled page by ${scrolled}px. Reached the bottom of the page.`
-		if (reachedTop) return `✅ Scrolled page by ${scrolled}px. Reached the top of the page.`
-		return `✅ Scrolled page by ${scrolled}px.`
-	} else {
-		// Container scroll
-
-		const warningMsg = `The document is not scrollable. Falling back to container scroll.`
-		console.log(`[PageController] ${warningMsg}`)
-
-		const scrollBefore = el!.scrollTop
-		const scrollMax = el!.scrollHeight - el!.clientHeight
-
-		el!.scrollBy({ top: dy, behavior: 'smooth' })
-		await waitFor(0.1)
-
-		const scrollAfter = el!.scrollTop
-		const scrolled = scrollAfter - scrollBefore
-
-		if (Math.abs(scrolled) < 1) {
-			return dy > 0
-				? `⚠️ ${warningMsg} Already at the bottom of container (${el!.tagName}), cannot scroll down further.`
-				: `⚠️ ${warningMsg} Already at the top of container (${el!.tagName}), cannot scroll up further.`
-		}
-
-		const reachedBottom = dy > 0 && scrollAfter >= scrollMax - 1
-		const reachedTop = dy < 0 && scrollAfter <= 1
-
-		if (reachedBottom)
-			return `✅ ${warningMsg} Scrolled container (${el!.tagName}) by ${scrolled}px. Reached the bottom.`
-		if (reachedTop)
-			return `✅ ${warningMsg} Scrolled container (${el!.tagName}) by ${scrolled}px. Reached the top.`
-		return `✅ ${warningMsg} Scrolled container (${el!.tagName}) by ${scrolled}px.`
-	}
+	return scrollPageOrNearestContainer(scroll_amount)
 }
 
 export async function scrollHorizontally(scroll_amount: number, element?: HTMLElement | null) {

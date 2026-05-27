@@ -194,7 +194,13 @@ export interface AgentReflection {
  * Before executing any action, the LLM must output its reasoning state.
  */
 export interface MacroToolInput extends Partial<AgentReflection> {
-	action: Record<string, any>
+	action: Record<string, any> | Record<string, any>[]
+}
+
+export interface MacroToolActionResult {
+	name: string
+	input: any
+	output: string
 }
 
 /**
@@ -203,6 +209,7 @@ export interface MacroToolInput extends Partial<AgentReflection> {
 export interface MacroToolResult {
 	input: MacroToolInput
 	output: string
+	actions?: MacroToolActionResult[]
 }
 
 /**

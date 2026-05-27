@@ -50,7 +50,11 @@ export function buildSessionContinuationTask({
 }
 
 export function formatSessionDisplayTask(previousTask: string, userMessage: string): string {
-	return `${previousTask}\n补充：${userMessage}`
+	return `${getSessionContinuationBaseTask(previousTask)}\n补充：${userMessage}`
+}
+
+export function getSessionContinuationBaseTask(task: string): string {
+	return task.split(/\n补充：/)[0]?.trim() || task.trim()
 }
 
 export function toContinuationResolverInput(

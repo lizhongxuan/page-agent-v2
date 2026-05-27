@@ -1,10 +1,19 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { PAGE_LOCK_ID, hidePageLock, showPageLock, withPageLockBypassed } from './pageLock'
+import {
+	PAGE_LOCK_ID,
+	hidePageLock,
+	isPageLockSuspended,
+	resumePageLock,
+	showPageLock,
+	suspendPageLock,
+	withPageLockBypassed,
+} from './pageLock'
 
 describe('page lock', () => {
 	afterEach(() => {
+		while (isPageLockSuspended()) resumePageLock()
 		hidePageLock()
 	})
 
@@ -27,5 +36,22 @@ describe('page lock', () => {
 
 		expect(pointerEventsDuringRead).toBe('none')
 		expect(lock?.style.pointerEvents).toBe('auto')
+	})
+
+	it('keeps the page unlocked while user handover is active', () => {
+		showPageLock()
+		expect(document.getElementById(PAGE_LOCK_ID)).toBeTruthy()
+
+		suspendPageLock()
+		showPageLock()
+
+		expect(isPageLockSuspended()).toBe(true)
+		expect(document.getElementById(PAGE_LOCK_ID)).toBeNull()
+
+		resumePageLock()
+		showPageLock()
+
+		expect(isPageLockSuspended()).toBe(false)
+		expect(document.getElementById(PAGE_LOCK_ID)).toBeTruthy()
 	})
 })

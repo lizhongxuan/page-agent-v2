@@ -1,6 +1,13 @@
 export const PAGE_LOCK_ID = 'page-agent-v2-runtime-page-lock'
 
+let suspendCount = 0
+
 export function showPageLock() {
+	if (isPageLockSuspended()) {
+		hidePageLock()
+		return
+	}
+
 	if (document.getElementById(PAGE_LOCK_ID)) return
 
 	const lock = document.createElement('div')
@@ -32,6 +39,23 @@ export function showPageLock() {
 
 export function hidePageLock() {
 	document.getElementById(PAGE_LOCK_ID)?.remove()
+}
+
+export function suspendPageLock() {
+	suspendCount += 1
+	hidePageLock()
+	window.dispatchEvent(new CustomEvent('PageAgent::EnablePassThrough'))
+}
+
+export function resumePageLock() {
+	suspendCount = Math.max(0, suspendCount - 1)
+	if (suspendCount === 0) {
+		window.dispatchEvent(new CustomEvent('PageAgent::DisablePassThrough'))
+	}
+}
+
+export function isPageLockSuspended() {
+	return suspendCount > 0
 }
 
 export async function withPageLockBypassed<T>(run: () => Promise<T>): Promise<T> {

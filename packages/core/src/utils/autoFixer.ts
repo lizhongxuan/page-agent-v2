@@ -128,6 +128,14 @@ export function normalizeResponse(response: any, tools?: Map<string, PageAgentTo
  * e.g. `{"click_element_by_index": 2}` → `{"click_element_by_index": {"index": 2}}`
  */
 function validateAction(action: any, tools: Map<string, PageAgentTool>): any {
+	if (Array.isArray(action)) {
+		return action.map((item) => validateSingleAction(item, tools))
+	}
+
+	return validateSingleAction(action, tools)
+}
+
+function validateSingleAction(action: any, tools: Map<string, PageAgentTool>): any {
 	if (typeof action !== 'object' || action === null) return action
 
 	const toolName = Object.keys(action)[0]

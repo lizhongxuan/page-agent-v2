@@ -170,6 +170,19 @@ export class RemotePageController {
 		})
 	}
 
+	async requestUserHandover(message: string): Promise<InteractionResponse> {
+		return this.requestInteraction(
+			{
+				type: 'handover',
+				requestId: crypto.randomUUID(),
+				title: '需要你接管页面',
+				message,
+				resumeButtonLabel: '我已完成，继续',
+			},
+			600_000
+		)
+	}
+
 	/** @note Managed by content script via storage polling. */
 	async showMask(): Promise<void> {}
 	/** @note Managed by content script via storage polling. */

@@ -1,10 +1,14 @@
+import { shouldUseSensitiveHandover } from './sensitiveHandover'
+
 export interface PendingUserQuestion {
 	id: string
 	question: string
+	kind: 'input' | 'handover'
 }
 
 interface AskUserBridge {
 	ask: (question: string) => Promise<string>
+	askWithTaskContext: (task: string, question: string) => Promise<string>
 	answer: (answer: string) => boolean
 	cancel: (reason: string) => boolean
 	getPending: () => PendingUserQuestion | null
@@ -30,20 +34,27 @@ export function createAskUserBridge(
 		return true
 	}
 
+	const askWithTaskContext = (task: string, question: string) => {
+		resolveAndClear(DEFAULT_CANCEL_REASON)
+
+		pending = {
+			id: String(++nextId),
+			question,
+			kind: shouldUseSensitiveHandover(task, question) ? 'handover' : 'input',
+		}
+		onPendingChange(pending)
+
+		return new Promise<string>((resolve) => {
+			resolvePending = resolve
+		})
+	}
+
 	return {
 		ask(question) {
-			resolveAndClear(DEFAULT_CANCEL_REASON)
-
-			pending = {
-				id: String(++nextId),
-				question,
-			}
-			onPendingChange(pending)
-
-			return new Promise<string>((resolve) => {
-				resolvePending = resolve
-			})
+			return askWithTaskContext('', question)
 		},
+
+		askWithTaskContext,
 
 		answer(answer) {
 			return resolveAndClear(answer)

@@ -17,6 +17,14 @@ import {
 import { RemotePageController } from './RemotePageController'
 import { TabsController } from './TabsController'
 import { formatAskUserResponse } from './askUserResponse'
+import {
+	type CompletedSensitiveHandover,
+	formatCompletedSensitiveHandoverResponse,
+	formatRepeatedSensitiveHandoverResponse,
+	isSensitiveHandoverQuestion,
+	shouldSuppressRepeatedSensitiveHandover,
+	shouldUseSensitiveHandover,
+} from './sensitiveHandover'
 import SYSTEM_PROMPT from './system_prompt.md?raw'
 import { createTabTools } from './tabTools'
 
@@ -73,6 +81,7 @@ export class MultiPageAgent extends PageAgentCore {
 		let pendingKnowledgeContext = ''
 		let webOpsSession: RecordedSession | undefined
 		let lastRecordedStepIndex = -1
+		let lastSensitiveHandover: CompletedSensitiveHandover | null = null
 
 		super({
 			...config,
@@ -174,10 +183,65 @@ export class MultiPageAgent extends PageAgentCore {
 			},
 		})
 
-		this.onAskUser =
-			config.onAskUser ?? createPageInteractionAskUser(tabsController, pageController)
+		const pageInteractionAskUser = createPageInteractionAskUser(tabsController, pageController)
+		this.onAskUser = async (question: string) => {
+			if (shouldUseSensitiveHandover(this.task, question)) {
+				const tabInfo = await getCurrentTabInfo(tabsController)
+				if (
+					shouldSuppressRepeatedSensitiveHandover({
+						lastHandover: lastSensitiveHandover,
+						currentUrl: tabInfo.url,
+						question,
+						now: Date.now(),
+					})
+				) {
+					return formatRepeatedSensitiveHandoverResponse()
+				}
+				const answer = await requestSensitivePageHandover(
+					question,
+					tabsController,
+					pageController,
+					tabInfo
+				)
+				if (answer.completed) {
+					lastSensitiveHandover = { url: tabInfo.url, completedAt: Date.now() }
+				}
+				return answer.message
+			}
+			return config.onAskUser ? config.onAskUser(question) : pageInteractionAskUser(question)
+		}
 
 		this.getWebOpsSessionRef = () => webOpsSession
+	}
+}
+
+async function requestSensitivePageHandover(
+	question: string,
+	tabsController: TabsController,
+	pageController: RemotePageController,
+	tabInfo?: { url: string; title: string }
+) {
+	const currentTabInfo = tabInfo ?? (await getCurrentTabInfo(tabsController))
+	const response = await pageController.requestUserHandover(
+		'请直接在网页中输入账号、密码、验证码或完成登录验证。PageAgent 不会读取或保存这些敏感信息。完成后点击这里继续。'
+	)
+
+	recordWebOpsAction({
+		id: crypto.randomUUID(),
+		type: 'handover',
+		timestamp: Date.now(),
+		pageUrl: currentTabInfo.url,
+		pageTitle: currentTabInfo.title,
+		result: response.type === 'cancelled' ? 'skipped' : 'success',
+		note: question,
+	})
+
+	return {
+		completed: response.type === 'handover_done',
+		message:
+			response.type === 'handover_done'
+				? formatCompletedSensitiveHandoverResponse()
+				: formatAskUserResponse(response),
 	}
 }
 
@@ -186,9 +250,12 @@ function createPageInteractionAskUser(
 	pageController: RemotePageController
 ) {
 	return async (question: string) => {
-		const tabInfo = tabsController.currentTabId
-			? await tabsController.getTabInfo(tabsController.currentTabId)
-			: { url: '', title: '' }
+		if (isSensitiveHandoverQuestion(question)) {
+			const answer = await requestSensitivePageHandover(question, tabsController, pageController)
+			return answer.message
+		}
+
+		const tabInfo = await getCurrentTabInfo(tabsController)
 		const response = await pageController.requestInteraction(
 			{
 				type: 'input',
@@ -213,6 +280,14 @@ function createPageInteractionAskUser(
 
 		return formatAskUserResponse(response)
 	}
+}
+
+async function getCurrentTabInfo(
+	tabsController: TabsController
+): Promise<{ url: string; title: string }> {
+	return tabsController.currentTabId
+		? tabsController.getTabInfo(tabsController.currentTabId)
+		: { url: '', title: '' }
 }
 
 async function recordNonDomStep(stepEvent: AgentStepEvent, tabsController: TabsController) {

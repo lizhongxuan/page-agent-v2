@@ -25,6 +25,7 @@ import {
 	type SessionContinuationDecisionContext,
 	buildResolvedSessionContinuation,
 } from './sessionContinuation'
+import { setSidePanelHandoverActive } from './sidePanelHandover'
 
 /** Language preference: undefined means follow system */
 export type LanguagePreference = SupportedLanguage | undefined
@@ -78,6 +79,16 @@ export function useAgent(): UseAgentResult {
 	const [pendingQuestion, setPendingQuestion] = useState<PendingUserQuestion | null>(null)
 
 	useEffect(() => {
+		const active = pendingQuestion?.kind === 'handover'
+		setSidePanelHandoverActive(active).catch((error) =>
+			console.error('[SidePanel] Failed to update handover state:', error)
+		)
+		return () => {
+			if (active) setSidePanelHandoverActive(false).catch(() => {})
+		}
+	}, [pendingQuestion])
+
+	useEffect(() => {
 		chrome.storage.local
 			.get(['llmConfig', 'language', 'advancedConfig', 'knowledgeSettings'])
 			.then((result) => {
@@ -109,7 +120,7 @@ export function useAgent(): UseAgentResult {
 		const agent = new MultiPageAgent({
 			...agentConfig,
 			instructions: systemInstruction ? { system: systemInstruction } : undefined,
-			onAskUser: askBridge.ask,
+			onAskUser: (question) => askBridge.askWithTaskContext(agentRef.current?.task ?? '', question),
 		})
 		agentRef.current = agent
 
