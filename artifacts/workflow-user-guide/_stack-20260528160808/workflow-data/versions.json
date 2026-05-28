@@ -1,0 +1,689 @@
+{
+  "wf_manual_127_0_0_1_manual_1779955696077:v1": {
+    "workflowId": "wf_manual_127_0_0_1_manual_1779955696077",
+    "version": 1,
+    "recipe": {
+      "id": "wf_manual_127_0_0_1_manual_1779955696077",
+      "version": 1,
+      "projectId": "real-user-1779955695852",
+      "status": "active",
+      "searchable": true,
+      "site": "127.0.0.1",
+      "name": "在 github.com/alibaba/page-agent 的 Issues 里搜索 startsWith 报错",
+      "intent": "在 github.com/alibaba/page-agent 的 Issues 里搜索 startsWith 报错",
+      "description": "Replay a user-recorded browser workflow. Recorded GitHub repository: alibaba/page-agent. Search/input values are parameterized as {{query}}. Original task: 在 github.com/alibaba/page-agent 的 Issues 里搜索 startsWith 报错.",
+      "tags": [
+        "127.0.0.1",
+        "repo",
+        "search"
+      ],
+      "riskLevel": "read_or_search",
+      "requiresConfirmation": false,
+      "variables": [
+        {
+          "name": "repo",
+          "type": "string",
+          "required": true,
+          "source": "task_or_url",
+          "examples": [
+            "alibaba/page-agent"
+          ]
+        },
+        {
+          "name": "query",
+          "type": "string",
+          "required": true,
+          "source": "task",
+          "examples": [
+            "startsWith 报错"
+          ]
+        }
+      ],
+      "chunks": [
+        {
+          "id": "chunk_1",
+          "name": "Recorded browser workflow",
+          "fromPageState": "127_0_0_1_page",
+          "toPageState": "127_0_0_1_page",
+          "stepSummary": "click Issues -\u003e fill Search all issues -\u003e click Search",
+          "riskLevel": "read_or_search",
+          "steps": [
+            {
+              "id": "step_1",
+              "type": "click",
+              "target": {
+                "primary": {
+                  "strategy": "role",
+                  "role": "link",
+                  "name": "Issues"
+                },
+                "fallbacks": [
+                  {
+                    "strategy": "text",
+                    "value": "Issues"
+                  },
+                  {
+                    "strategy": "css",
+                    "value": "a"
+                  }
+                ]
+              },
+              "riskLevel": "read_or_search"
+            },
+            {
+              "id": "step_2",
+              "type": "fill",
+              "target": {
+                "primary": {
+                  "strategy": "role",
+                  "role": "textbox",
+                  "name": "Search all issues"
+                },
+                "fallbacks": [
+                  {
+                    "strategy": "css",
+                    "value": "input"
+                  }
+                ]
+              },
+              "value": "{{query}}",
+              "riskLevel": "read_or_search"
+            },
+            {
+              "id": "step_3",
+              "type": "click",
+              "target": {
+                "primary": {
+                  "strategy": "role",
+                  "role": "button",
+                  "name": "Search"
+                },
+                "fallbacks": [
+                  {
+                    "strategy": "text",
+                    "value": "Search"
+                  },
+                  {
+                    "strategy": "css",
+                    "value": "button"
+                  }
+                ]
+              },
+              "riskLevel": "read_or_search"
+            }
+          ],
+          "variableNames": [
+            "repo",
+            "query"
+          ],
+          "successRate": 1,
+          "selectorHealth": 1
+        }
+      ],
+      "startPageStates": [
+        "127_0_0_1_page"
+      ],
+      "endPageStates": [
+        "127_0_0_1_page"
+      ],
+      "createdAt": "2026-05-28T08:08:16.312Z",
+      "updatedAt": "2026-05-28T08:08:16.395345Z"
+    },
+    "summary": "approved candidate cand_809592f1e47124c4",
+    "createdAt": "2026-05-28T08:08:16.396429Z"
+  },
+  "wf_manual_127_0_0_1_manual_1779955698452:v1": {
+    "workflowId": "wf_manual_127_0_0_1_manual_1779955698452",
+    "version": 1,
+    "recipe": {
+      "id": "wf_manual_127_0_0_1_manual_1779955698452",
+      "version": 1,
+      "projectId": "real-user-1779955698223",
+      "status": "active",
+      "searchable": true,
+      "site": "127.0.0.1",
+      "name": "在 github.com/alibaba/page-agent 的 Issues 里搜索 startsWith 报错",
+      "intent": "在 github.com/alibaba/page-agent 的 Issues 里搜索 startsWith 报错",
+      "description": "Replay a user-recorded browser workflow. Recorded GitHub repository: alibaba/page-agent. Search/input values are parameterized as {{query}}. Original task: 在 github.com/alibaba/page-agent 的 Issues 里搜索 startsWith 报错.",
+      "tags": [
+        "127.0.0.1",
+        "repo",
+        "search"
+      ],
+      "riskLevel": "read_or_search",
+      "requiresConfirmation": false,
+      "variables": [
+        {
+          "name": "repo",
+          "type": "string",
+          "required": true,
+          "source": "task_or_url",
+          "examples": [
+            "alibaba/page-agent"
+          ]
+        },
+        {
+          "name": "query",
+          "type": "string",
+          "required": true,
+          "source": "task",
+          "examples": [
+            "startsWith 报错"
+          ]
+        }
+      ],
+      "chunks": [
+        {
+          "id": "chunk_1",
+          "name": "Recorded browser workflow",
+          "fromPageState": "127_0_0_1_page",
+          "toPageState": "127_0_0_1_page",
+          "stepSummary": "click Issues -\u003e fill Search all issues -\u003e click Search",
+          "riskLevel": "read_or_search",
+          "steps": [
+            {
+              "id": "step_1",
+              "type": "click",
+              "target": {
+                "primary": {
+                  "strategy": "role",
+                  "role": "link",
+                  "name": "Issues"
+                },
+                "fallbacks": [
+                  {
+                    "strategy": "text",
+                    "value": "Issues"
+                  },
+                  {
+                    "strategy": "css",
+                    "value": "a"
+                  }
+                ]
+              },
+              "riskLevel": "read_or_search"
+            },
+            {
+              "id": "step_2",
+              "type": "fill",
+              "target": {
+                "primary": {
+                  "strategy": "role",
+                  "role": "textbox",
+                  "name": "Search all issues"
+                },
+                "fallbacks": [
+                  {
+                    "strategy": "css",
+                    "value": "input"
+                  }
+                ]
+              },
+              "value": "{{query}}",
+              "riskLevel": "read_or_search"
+            },
+            {
+              "id": "step_3",
+              "type": "click",
+              "target": {
+                "primary": {
+                  "strategy": "role",
+                  "role": "button",
+                  "name": "Search"
+                },
+                "fallbacks": [
+                  {
+                    "strategy": "text",
+                    "value": "Search"
+                  },
+                  {
+                    "strategy": "css",
+                    "value": "button"
+                  }
+                ]
+              },
+              "riskLevel": "read_or_search"
+            }
+          ],
+          "variableNames": [
+            "repo",
+            "query"
+          ],
+          "successRate": 1,
+          "selectorHealth": 1
+        }
+      ],
+      "startPageStates": [
+        "127_0_0_1_page"
+      ],
+      "endPageStates": [
+        "127_0_0_1_page"
+      ],
+      "createdAt": "2026-05-28T08:08:18.653Z",
+      "updatedAt": "2026-05-28T08:08:18.736697Z"
+    },
+    "summary": "approved candidate cand_45081acaf66c7899",
+    "createdAt": "2026-05-28T08:08:18.737813Z"
+  },
+  "wf_manual_127_0_0_1_manual_1779955700861:v1": {
+    "workflowId": "wf_manual_127_0_0_1_manual_1779955700861",
+    "version": 1,
+    "recipe": {
+      "id": "wf_manual_127_0_0_1_manual_1779955700861",
+      "version": 1,
+      "projectId": "real-user-1779955700626",
+      "status": "active",
+      "searchable": true,
+      "site": "127.0.0.1",
+      "name": "在 github.com/alibaba/page-agent 的 Issues 里搜索 startsWith 报错",
+      "intent": "在 github.com/alibaba/page-agent 的 Issues 里搜索 startsWith 报错",
+      "description": "Replay a user-recorded browser workflow. Recorded GitHub repository: alibaba/page-agent. Search/input values are parameterized as {{query}}. Original task: 在 github.com/alibaba/page-agent 的 Issues 里搜索 startsWith 报错.",
+      "tags": [
+        "127.0.0.1",
+        "repo",
+        "search"
+      ],
+      "riskLevel": "read_or_search",
+      "requiresConfirmation": false,
+      "variables": [
+        {
+          "name": "repo",
+          "type": "string",
+          "required": true,
+          "source": "task_or_url",
+          "examples": [
+            "alibaba/page-agent"
+          ]
+        },
+        {
+          "name": "query",
+          "type": "string",
+          "required": true,
+          "source": "task",
+          "examples": [
+            "startsWith 报错"
+          ]
+        }
+      ],
+      "chunks": [
+        {
+          "id": "chunk_1",
+          "name": "Recorded browser workflow",
+          "fromPageState": "127_0_0_1_page",
+          "toPageState": "127_0_0_1_page",
+          "stepSummary": "click Issues -\u003e fill Search all issues -\u003e click Search",
+          "riskLevel": "read_or_search",
+          "steps": [
+            {
+              "id": "step_1",
+              "type": "click",
+              "target": {
+                "primary": {
+                  "strategy": "role",
+                  "role": "link",
+                  "name": "Issues"
+                },
+                "fallbacks": [
+                  {
+                    "strategy": "text",
+                    "value": "Issues"
+                  },
+                  {
+                    "strategy": "css",
+                    "value": "a"
+                  }
+                ]
+              },
+              "riskLevel": "read_or_search"
+            },
+            {
+              "id": "step_2",
+              "type": "fill",
+              "target": {
+                "primary": {
+                  "strategy": "role",
+                  "role": "textbox",
+                  "name": "Search all issues"
+                },
+                "fallbacks": [
+                  {
+                    "strategy": "css",
+                    "value": "input"
+                  }
+                ]
+              },
+              "value": "{{query}}",
+              "riskLevel": "read_or_search"
+            },
+            {
+              "id": "step_3",
+              "type": "click",
+              "target": {
+                "primary": {
+                  "strategy": "role",
+                  "role": "button",
+                  "name": "Search"
+                },
+                "fallbacks": [
+                  {
+                    "strategy": "text",
+                    "value": "Search"
+                  },
+                  {
+                    "strategy": "css",
+                    "value": "button"
+                  }
+                ]
+              },
+              "riskLevel": "read_or_search"
+            }
+          ],
+          "variableNames": [
+            "repo",
+            "query"
+          ],
+          "successRate": 1,
+          "selectorHealth": 1
+        }
+      ],
+      "startPageStates": [
+        "127_0_0_1_page"
+      ],
+      "endPageStates": [
+        "127_0_0_1_page"
+      ],
+      "createdAt": "2026-05-28T08:08:21.062Z",
+      "updatedAt": "2026-05-28T08:08:21.143833Z"
+    },
+    "summary": "approved candidate cand_cbfec4ad3a14213a",
+    "createdAt": "2026-05-28T08:08:21.145505Z"
+  },
+  "wf_manual_127_0_0_1_manual_1779955701261:v1": {
+    "workflowId": "wf_manual_127_0_0_1_manual_1779955701261",
+    "version": 1,
+    "recipe": {
+      "id": "wf_manual_127_0_0_1_manual_1779955701261",
+      "version": 1,
+      "projectId": "real-user-1779955700626",
+      "status": "active",
+      "searchable": true,
+      "site": "127.0.0.1",
+      "name": "在运维订单控制台搜索 Acme delayed 订单，状态 delayed，并打开第一条订单详情",
+      "intent": "在运维订单控制台搜索 Acme delayed 订单，状态 delayed，并打开第一条订单详情",
+      "description": "Replay a user-recorded browser workflow. Original task: 在运维订单控制台搜索 Acme delayed 订单，状态 delayed，并打开第一条订单详情.",
+      "tags": [
+        "127.0.0.1"
+      ],
+      "riskLevel": "read_only",
+      "requiresConfirmation": false,
+      "variables": [
+        {
+          "name": "query",
+          "type": "string",
+          "required": true,
+          "source": "task"
+        }
+      ],
+      "chunks": [
+        {
+          "id": "chunk_1",
+          "name": "Recorded browser workflow",
+          "fromPageState": "127_0_0_1_page",
+          "toPageState": "127_0_0_1_page",
+          "stepSummary": "click Orders -\u003e select Status -\u003e click Apply filters -\u003e click Open first order",
+          "riskLevel": "read_only",
+          "steps": [
+            {
+              "id": "step_1",
+              "type": "click",
+              "target": {
+                "primary": {
+                  "strategy": "role",
+                  "role": "link",
+                  "name": "Orders"
+                },
+                "fallbacks": [
+                  {
+                    "strategy": "text",
+                    "value": "Orders"
+                  },
+                  {
+                    "strategy": "css",
+                    "value": "a"
+                  }
+                ]
+              },
+              "riskLevel": "read_or_search"
+            },
+            {
+              "id": "step_2",
+              "type": "select",
+              "target": {
+                "primary": {
+                  "strategy": "role",
+                  "role": "combobox",
+                  "name": "Status"
+                },
+                "fallbacks": [
+                  {
+                    "strategy": "text",
+                    "value": "open\n\t\t\t\t\t\t\tdelayed\n\t\t\t\t\t\t\tblocked\n\t\t\t\t\t\t\tresolved"
+                  },
+                  {
+                    "strategy": "css",
+                    "value": "#status-filter"
+                  }
+                ]
+              },
+              "value": "delayed",
+              "riskLevel": "read_or_search"
+            },
+            {
+              "id": "step_3",
+              "type": "click",
+              "target": {
+                "primary": {
+                  "strategy": "role",
+                  "role": "button",
+                  "name": "Apply filters"
+                },
+                "fallbacks": [
+                  {
+                    "strategy": "text",
+                    "value": "Apply filters"
+                  },
+                  {
+                    "strategy": "css",
+                    "value": "button"
+                  }
+                ]
+              },
+              "riskLevel": "read_or_search"
+            },
+            {
+              "id": "step_4",
+              "type": "click",
+              "target": {
+                "primary": {
+                  "strategy": "role",
+                  "role": "link",
+                  "name": "Open first order"
+                },
+                "fallbacks": [
+                  {
+                    "strategy": "text",
+                    "value": "Open first order"
+                  },
+                  {
+                    "strategy": "css",
+                    "value": "a"
+                  }
+                ]
+              },
+              "riskLevel": "read_or_search"
+            }
+          ],
+          "variableNames": [
+            "query"
+          ],
+          "successRate": 1,
+          "selectorHealth": 1
+        }
+      ],
+      "startPageStates": [
+        "127_0_0_1_page"
+      ],
+      "endPageStates": [
+        "127_0_0_1_page"
+      ],
+      "createdAt": "2026-05-28T08:08:21.486Z",
+      "updatedAt": "2026-05-28T08:08:21.561167Z"
+    },
+    "summary": "approved candidate cand_e3e0da8f9d00692a",
+    "createdAt": "2026-05-28T08:08:21.562878Z"
+  },
+  "wf_manual_127_0_0_1_manual_1779955703735:v1": {
+    "workflowId": "wf_manual_127_0_0_1_manual_1779955703735",
+    "version": 1,
+    "recipe": {
+      "id": "wf_manual_127_0_0_1_manual_1779955703735",
+      "version": 1,
+      "projectId": "real-user-1779955703493",
+      "status": "active",
+      "searchable": true,
+      "site": "127.0.0.1",
+      "name": "在运维订单控制台搜索 Acme delayed 订单，状态 delayed，并打开第一条订单详情",
+      "intent": "在运维订单控制台搜索 Acme delayed 订单，状态 delayed，并打开第一条订单详情",
+      "description": "Replay a user-recorded browser workflow. Original task: 在运维订单控制台搜索 Acme delayed 订单，状态 delayed，并打开第一条订单详情.",
+      "tags": [
+        "127.0.0.1"
+      ],
+      "riskLevel": "read_only",
+      "requiresConfirmation": false,
+      "variables": [
+        {
+          "name": "query",
+          "type": "string",
+          "required": true,
+          "source": "task"
+        }
+      ],
+      "chunks": [
+        {
+          "id": "chunk_1",
+          "name": "Recorded browser workflow",
+          "fromPageState": "127_0_0_1_page",
+          "toPageState": "127_0_0_1_page",
+          "stepSummary": "click Orders -\u003e select Status -\u003e click Apply filters -\u003e click Open first order",
+          "riskLevel": "read_only",
+          "steps": [
+            {
+              "id": "step_1",
+              "type": "click",
+              "target": {
+                "primary": {
+                  "strategy": "role",
+                  "role": "link",
+                  "name": "Orders"
+                },
+                "fallbacks": [
+                  {
+                    "strategy": "text",
+                    "value": "Orders"
+                  },
+                  {
+                    "strategy": "css",
+                    "value": "a"
+                  }
+                ]
+              },
+              "riskLevel": "read_or_search"
+            },
+            {
+              "id": "step_2",
+              "type": "select",
+              "target": {
+                "primary": {
+                  "strategy": "role",
+                  "role": "combobox",
+                  "name": "Status"
+                },
+                "fallbacks": [
+                  {
+                    "strategy": "text",
+                    "value": "open\n\t\t\t\t\t\t\tdelayed\n\t\t\t\t\t\t\tblocked\n\t\t\t\t\t\t\tresolved"
+                  },
+                  {
+                    "strategy": "css",
+                    "value": "#status-filter"
+                  }
+                ]
+              },
+              "value": "delayed",
+              "riskLevel": "read_or_search"
+            },
+            {
+              "id": "step_3",
+              "type": "click",
+              "target": {
+                "primary": {
+                  "strategy": "role",
+                  "role": "button",
+                  "name": "Apply filters"
+                },
+                "fallbacks": [
+                  {
+                    "strategy": "text",
+                    "value": "Apply filters"
+                  },
+                  {
+                    "strategy": "css",
+                    "value": "button"
+                  }
+                ]
+              },
+              "riskLevel": "read_or_search"
+            },
+            {
+              "id": "step_4",
+              "type": "click",
+              "target": {
+                "primary": {
+                  "strategy": "role",
+                  "role": "link",
+                  "name": "Open first order"
+                },
+                "fallbacks": [
+                  {
+                    "strategy": "text",
+                    "value": "Open first order"
+                  },
+                  {
+                    "strategy": "css",
+                    "value": "a"
+                  }
+                ]
+              },
+              "riskLevel": "read_or_search"
+            }
+          ],
+          "variableNames": [
+            "query"
+          ],
+          "successRate": 1,
+          "selectorHealth": 1
+        }
+      ],
+      "startPageStates": [
+        "127_0_0_1_page"
+      ],
+      "endPageStates": [
+        "127_0_0_1_page"
+      ],
+      "createdAt": "2026-05-28T08:08:23.995Z",
+      "updatedAt": "2026-05-28T08:08:24.07816Z"
+    },
+    "summary": "approved candidate cand_39fe8455b9670679",
+    "createdAt": "2026-05-28T08:08:24.079455Z"
+  }
+}

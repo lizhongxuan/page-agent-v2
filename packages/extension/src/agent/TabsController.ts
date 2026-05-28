@@ -42,8 +42,10 @@ export class TabsController {
 			throw new Error('TabsController already disposed')
 		}
 
-		this.currentTabId = null
+		this.disposed = true
+		this.port?.disconnect()
 		this.disposed = false
+		this.currentTabId = null
 		this.port = undefined
 		this.portRetries = 0
 

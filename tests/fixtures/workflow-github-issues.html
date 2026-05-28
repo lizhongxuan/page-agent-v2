@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>microsoft/playwright fixture</title>
+		<style>
+			:root {
+				color-scheme: light;
+				font-family:
+					-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+				background: #f6f8fa;
+				color: #24292f;
+			}
+
+			* {
+				box-sizing: border-box;
+			}
+
+			body {
+				margin: 0;
+			}
+
+			button,
+			input {
+				font: inherit;
+			}
+
+			header {
+				background: #24292f;
+				color: #ffffff;
+				padding: 16px 24px;
+			}
+
+			.repo-title {
+				margin: 0;
+				font-size: 22px;
+				font-weight: 650;
+			}
+
+			.repo-title span {
+				color: #8b949e;
+				font-weight: 500;
+			}
+
+			nav {
+				display: flex;
+				gap: 6px;
+				background: #ffffff;
+				border-bottom: 1px solid #d0d7de;
+				padding: 0 24px;
+			}
+
+			nav a {
+				color: #24292f;
+				text-decoration: none;
+				padding: 14px 12px;
+				border-bottom: 2px solid transparent;
+				font-weight: 600;
+			}
+
+			nav a[aria-current="page"] {
+				border-color: #fd8c73;
+			}
+
+			main {
+				max-width: 980px;
+				margin: 0 auto;
+				padding: 28px 24px 48px;
+			}
+
+			.repo-summary,
+			.issue-toolbar,
+			.result-list {
+				background: #ffffff;
+				border: 1px solid #d0d7de;
+				border-radius: 6px;
+			}
+
+			.repo-summary {
+				padding: 20px;
+			}
+
+			.repo-summary h2,
+			.issue-heading {
+				margin: 0 0 10px;
+				font-size: 22px;
+			}
+
+			.muted {
+				color: #57606a;
+			}
+
+			.issue-toolbar {
+				display: grid;
+				grid-template-columns: minmax(260px, 1fr) auto;
+				gap: 10px;
+				margin: 16px 0;
+				padding: 12px;
+			}
+
+			label {
+				display: grid;
+				gap: 6px;
+				font-weight: 600;
+			}
+
+			input {
+				border: 1px solid #8c959f;
+				border-radius: 6px;
+				padding: 9px 10px;
+			}
+
+			button {
+				align-self: end;
+				border: 1px solid #1f883d;
+				border-radius: 6px;
+				background: #1f883d;
+				color: #ffffff;
+				font-weight: 700;
+				padding: 9px 14px;
+				cursor: pointer;
+			}
+
+			.result-list {
+				list-style: none;
+				margin: 0;
+				padding: 0;
+			}
+
+			.result-list li {
+				border-top: 1px solid #d8dee4;
+				padding: 14px 16px;
+			}
+
+			.result-list li:first-child {
+				border-top: 0;
+			}
+
+			.issue-title {
+				display: block;
+				font-weight: 700;
+				margin-bottom: 5px;
+			}
+
+			.hidden {
+				display: none;
+			}
+		</style>
+	</head>
+	<body>
+		<header>
+			<h1 class="repo-title"><span>microsoft /</span> playwright</h1>
+		</header>
+		<nav aria-label="Repository">
+			<a href="#code" data-tab="code" aria-current="page">Code</a>
+			<a href="#issues" data-tab="issues">Issues</a>
+			<a href="#pull-requests" data-tab="pull-requests">Pull requests</a>
+		</nav>
+		<main>
+			<section id="code-panel" class="repo-summary" aria-labelledby="code-heading">
+				<h2 id="code-heading">playwright</h2>
+				<p class="muted">
+					Browser automation fixture used to validate workflow retrieval and variable binding.
+				</p>
+			</section>
+
+			<section id="issues-panel" class="hidden" aria-labelledby="issues-heading">
+				<h2 id="issues-heading" class="issue-heading">Issues</h2>
+				<p class="muted">Search all issues in microsoft/playwright.</p>
+				<form class="issue-toolbar" data-testid="issue-search-form">
+					<label>
+						Search all issues
+						<input
+							name="q"
+							placeholder="Search all issues"
+							autocomplete="off"
+							value="is:issue is:open"
+						/>
+					</label>
+					<button type="submit">Search</button>
+				</form>
+				<p data-testid="search-state" aria-live="polite">Ready to search issues.</p>
+				<ul class="result-list" data-testid="issue-results" aria-label="Issue search results"></ul>
+			</section>
+		</main>
+
+		<script>
+			const navLinks = Array.from(document.querySelectorAll("[data-tab]"))
+			const codePanel = document.querySelector("#code-panel")
+			const issuesPanel = document.querySelector("#issues-panel")
+			const form = document.querySelector("[data-testid='issue-search-form']")
+			const searchInput = form.elements.q
+			const searchState = document.querySelector("[data-testid='search-state']")
+			const issueResults = document.querySelector("[data-testid='issue-results']")
+
+			function showTab(tab) {
+				const isIssues = tab === "issues"
+				codePanel.classList.toggle("hidden", isIssues)
+				issuesPanel.classList.toggle("hidden", !isIssues)
+				navLinks.forEach((link) => {
+					if (link.dataset.tab === tab) {
+						link.setAttribute("aria-current", "page")
+					} else {
+						link.removeAttribute("aria-current")
+					}
+				})
+			}
+
+			function renderResults(query) {
+				const normalized = query.trim()
+				const resultText = normalized || "is:issue is:open"
+				searchState.textContent = `Showing 2 issue results for "${resultText}".`
+				issueResults.innerHTML = `
+					<li>
+						<span class="issue-title">Timeout while waiting for locator in ${resultText}</span>
+						<span class="muted">#42117 opened in microsoft/playwright</span>
+					</li>
+					<li>
+						<span class="issue-title">Document flaky issue search workflow for ${resultText}</span>
+						<span class="muted">#42118 opened in microsoft/playwright</span>
+					</li>
+				`
+				document.body.dataset.workflowState = "issues-search-results"
+				document.body.dataset.workflowQuery = resultText
+			}
+
+			navLinks.forEach((link) => {
+				link.addEventListener("click", (event) => {
+					event.preventDefault()
+					showTab(link.dataset.tab)
+					history.replaceState(null, "", link.getAttribute("href"))
+				})
+			})
+
+			form.addEventListener("submit", (event) => {
+				event.preventDefault()
+				renderResults(searchInput.value)
+			})
+
+			if (location.hash === "#issues") {
+				showTab("issues")
+			}
+		</script>
+	</body>
+</html>

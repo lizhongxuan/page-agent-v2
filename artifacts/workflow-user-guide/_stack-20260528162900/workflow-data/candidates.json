@@ -1,0 +1,1225 @@
+{
+  "cand_31495ff3e8ab90e3": {
+    "id": "cand_31495ff3e8ab90e3",
+    "projectId": "user-guide-repair-1779956946593",
+    "source": "user_demo",
+    "task": "Search example/project-a issues for recorded query",
+    "startUrl": "https://github.com/example/project-a",
+    "recipeDraft": {
+      "id": "wf_user_guide_repair_1779956946593",
+      "version": 1,
+      "projectId": "user-guide-repair-1779956946593",
+      "status": "active",
+      "searchable": true,
+      "site": "github.com",
+      "app": "github",
+      "name": "Search GitHub issues",
+      "intent": "Search issues in a GitHub repository",
+      "description": "Open a repository Issues page and search by query.",
+      "tags": [
+        "github",
+        "issues",
+        "search"
+      ],
+      "riskLevel": "read_or_search",
+      "requiresConfirmation": false,
+      "variables": [
+        {
+          "name": "repo",
+          "type": "string",
+          "required": true,
+          "source": "task_or_url",
+          "examples": [
+            "example/project-a"
+          ]
+        },
+        {
+          "name": "query",
+          "type": "string",
+          "required": true,
+          "source": "task",
+          "examples": [
+            "recorded query"
+          ]
+        }
+      ],
+      "chunks": [
+        {
+          "id": "search_issues",
+          "name": "Search Issues",
+          "fromPageState": "github_repo_home",
+          "toPageState": "github_issues_search_results",
+          "preconditionText": "Code",
+          "postconditionText": "Showing 2 issue results",
+          "stepSummary": "Open Issues and search by query",
+          "riskLevel": "read_or_search",
+          "steps": [
+            {
+              "id": "click_issues",
+              "type": "click",
+              "target": {
+                "primary": {
+                  "strategy": "role",
+                  "role": "link",
+                  "name": "Issues"
+                },
+                "fallbacks": [
+                  {
+                    "strategy": "text",
+                    "value": "Issues"
+                  }
+                ]
+              },
+              "riskLevel": "read_or_search"
+            },
+            {
+              "id": "fill_query",
+              "type": "fill",
+              "target": {
+                "primary": {
+                  "strategy": "placeholder",
+                  "value": "Old issue search"
+                }
+              },
+              "value": "{{query}}",
+              "riskLevel": "read_or_search"
+            },
+            {
+              "id": "submit_search",
+              "type": "click",
+              "target": {
+                "primary": {
+                  "strategy": "role",
+                  "role": "button",
+                  "name": "Search"
+                }
+              },
+              "riskLevel": "read_or_search"
+            }
+          ],
+          "variableNames": [
+            "repo",
+            "query"
+          ],
+          "successRate": 0.75,
+          "selectorHealth": 0.75,
+          "recentFailureCount": 2
+        }
+      ],
+      "startPageStates": [
+        "github_repo_home"
+      ],
+      "endPageStates": [
+        "github_issues_search_results"
+      ],
+      "createdAt": "0001-01-01T00:00:00Z",
+      "updatedAt": "2026-05-28T08:29:06.601067Z"
+    },
+    "status": "active",
+    "searchable": true,
+    "createdAt": "2026-05-28T08:29:06.594352Z",
+    "reviewedAt": "2026-05-28T08:29:06.60109Z"
+  },
+  "cand_349def3a96e4f03d": {
+    "id": "cand_349def3a96e4f03d",
+    "projectId": "real-user-1779956953556",
+    "source": "user_demo",
+    "task": "在运维订单控制台搜索 Acme delayed 订单，状态 delayed，并打开第一条订单详情",
+    "startUrl": "http://127.0.0.1:63140/workflow-ops-orders.html",
+    "recipeDraft": {
+      "id": "wf_manual_127_0_0_1_manual_1779956954324",
+      "version": 1,
+      "projectId": "real-user-1779956953556",
+      "status": "active",
+      "searchable": true,
+      "site": "127.0.0.1",
+      "name": "在运维订单控制台搜索 Acme delayed 订单，状态 delayed，并打开第一条订单详情",
+      "intent": "在运维订单控制台搜索 Acme delayed 订单，状态 delayed，并打开第一条订单详情",
+      "description": "Replay a user-recorded browser workflow. Original task: 在运维订单控制台搜索 Acme delayed 订单，状态 delayed，并打开第一条订单详情.",
+      "tags": [
+        "127.0.0.1"
+      ],
+      "riskLevel": "read_only",
+      "requiresConfirmation": false,
+      "variables": [
+        {
+          "name": "query",
+          "type": "string",
+          "required": true,
+          "source": "task"
+        }
+      ],
+      "chunks": [
+        {
+          "id": "chunk_1",
+          "name": "Recorded browser workflow",
+          "fromPageState": "127_0_0_1_page",
+          "toPageState": "127_0_0_1_page",
+          "stepSummary": "click Orders -\u003e select Status -\u003e click Apply filters -\u003e click Open first order",
+          "riskLevel": "read_only",
+          "steps": [
+            {
+              "id": "step_1",
+              "type": "click",
+              "target": {
+                "primary": {
+                  "strategy": "role",
+                  "role": "link",
+                  "name": "Orders"
+                },
+                "fallbacks": [
+                  {
+                    "strategy": "text",
+                    "value": "Orders"
+                  },
+                  {
+                    "strategy": "css",
+                    "value": "a"
+                  }
+                ]
+              },
+              "riskLevel": "read_or_search"
+            },
+            {
+              "id": "step_2",
+              "type": "select",
+              "target": {
+                "primary": {
+                  "strategy": "role",
+                  "role": "combobox",
+                  "name": "Status"
+                },
+                "fallbacks": [
+                  {
+                    "strategy": "text",
+                    "value": "open\n\t\t\t\t\t\t\tdelayed\n\t\t\t\t\t\t\tblocked\n\t\t\t\t\t\t\tresolved"
+                  },
+                  {
+                    "strategy": "css",
+                    "value": "#status-filter"
+                  }
+                ]
+              },
+              "value": "delayed",
+              "riskLevel": "read_or_search"
+            },
+            {
+              "id": "step_3",
+              "type": "click",
+              "target": {
+                "primary": {
+                  "strategy": "role",
+                  "role": "button",
+                  "name": "Apply filters"
+                },
+                "fallbacks": [
+                  {
+                    "strategy": "text",
+                    "value": "Apply filters"
+                  },
+                  {
+                    "strategy": "css",
+                    "value": "button"
+                  }
+                ]
+              },
+              "riskLevel": "read_or_search"
+            },
+            {
+              "id": "step_4",
+              "type": "click",
+              "target": {
+                "primary": {
+                  "strategy": "role",
+                  "role": "link",
+                  "name": "Open first order"
+                },
+                "fallbacks": [
+                  {
+                    "strategy": "text",
+                    "value": "Open first order"
+                  },
+                  {
+                    "strategy": "css",
+                    "value": "a"
+                  }
+                ]
+              },
+              "riskLevel": "read_or_search"
+            }
+          ],
+          "variableNames": [
+            "query"
+          ],
+          "successRate": 1,
+          "selectorHealth": 1
+        }
+      ],
+      "startPageStates": [
+        "127_0_0_1_page"
+      ],
+      "endPageStates": [
+        "127_0_0_1_page"
+      ],
+      "createdAt": "2026-05-28T08:29:14.624Z",
+      "updatedAt": "2026-05-28T08:29:14.74107Z"
+    },
+    "status": "active",
+    "searchable": true,
+    "createdAt": "2026-05-28T08:29:14.625354Z",
+    "reviewedAt": "2026-05-28T08:29:14.741096Z"
+  },
+  "cand_3bc4eb41d612a5e5": {
+    "id": "cand_3bc4eb41d612a5e5",
+    "projectId": "real-user-1779956946690",
+    "source": "user_demo",
+    "task": "在 github.com/alibaba/page-agent 的 Issues 里搜索 startsWith 报错",
+    "startUrl": "http://127.0.0.1:63095/workflow-github-issues.html",
+    "recipeDraft": {
+      "id": "wf_manual_127_0_0_1_manual_1779956947192",
+      "version": 1,
+      "projectId": "real-user-1779956946690",
+      "status": "pending_review",
+      "searchable": false,
+      "site": "127.0.0.1",
+      "name": "在 github.com/alibaba/page-agent 的 Issues 里搜索 startsWith 报错",
+      "intent": "在 github.com/alibaba/page-agent 的 Issues 里搜索 startsWith 报错",
+      "description": "Replay a user-recorded browser workflow. Recorded GitHub repository: alibaba/page-agent. Search/input values are parameterized as {{query}}. Original task: 在 github.com/alibaba/page-agent 的 Issues 里搜索 startsWith 报错.",
+      "tags": [
+        "127.0.0.1",
+        "repo",
+        "search"
+      ],
+      "riskLevel": "read_or_search",
+      "requiresConfirmation": false,
+      "variables": [
+        {
+          "name": "repo",
+          "type": "string",
+          "required": true,
+          "source": "task_or_url",
+          "examples": [
+            "alibaba/page-agent"
+          ]
+        },
+        {
+          "name": "query",
+          "type": "string",
+          "required": true,
+          "source": "task",
+          "examples": [
+            "startsWith 报错"
+          ]
+        }
+      ],
+      "chunks": [
+        {
+          "id": "chunk_1",
+          "name": "Recorded browser workflow",
+          "fromPageState": "127_0_0_1_page",
+          "toPageState": "127_0_0_1_page",
+          "stepSummary": "click Issues -\u003e fill Search all issues -\u003e click Search",
+          "riskLevel": "read_or_search",
+          "steps": [
+            {
+              "id": "step_1",
+              "type": "click",
+              "target": {
+                "primary": {
+                  "strategy": "role",
+                  "role": "link",
+                  "name": "Issues"
+                },
+                "fallbacks": [
+                  {
+                    "strategy": "text",
+                    "value": "Issues"
+                  },
+                  {
+                    "strategy": "css",
+                    "value": "a"
+                  }
+                ]
+              },
+              "riskLevel": "read_or_search"
+            },
+            {
+              "id": "step_2",
+              "type": "fill",
+              "target": {
+                "primary": {
+                  "strategy": "role",
+                  "role": "textbox",
+                  "name": "Search all issues"
+                },
+                "fallbacks": [
+                  {
+                    "strategy": "css",
+                    "value": "input"
+                  }
+                ]
+              },
+              "value": "{{query}}",
+              "riskLevel": "read_or_search"
+            },
+            {
+              "id": "step_3",
+              "type": "click",
+              "target": {
+                "primary": {
+                  "strategy": "role",
+                  "role": "button",
+                  "name": "Search"
+                },
+                "fallbacks": [
+                  {
+                    "strategy": "text",
+                    "value": "Search"
+                  },
+                  {
+                    "strategy": "css",
+                    "value": "button"
+                  }
+                ]
+              },
+              "riskLevel": "read_or_search"
+            }
+          ],
+          "variableNames": [
+            "repo",
+            "query"
+          ],
+          "successRate": 1,
+          "selectorHealth": 1
+        }
+      ],
+      "startPageStates": [
+        "127_0_0_1_page"
+      ],
+      "endPageStates": [
+        "127_0_0_1_page"
+      ],
+      "createdAt": "2026-05-28T08:29:07.492Z",
+      "updatedAt": "2026-05-28T08:29:07.492Z"
+    },
+    "status": "pending_review",
+    "searchable": false,
+    "createdAt": "2026-05-28T08:29:07.494323Z",
+    "reviewedAt": "0001-01-01T00:00:00Z"
+  },
+  "cand_6d4ed996e307d9fa": {
+    "id": "cand_6d4ed996e307d9fa",
+    "projectId": "user-guide-1779956945245",
+    "source": "user_demo",
+    "task": "Search example/project-a issues for recorded query",
+    "startUrl": "https://github.com/example/project-a",
+    "recipeDraft": {
+      "id": "wf_user_guide_1779956945245",
+      "version": 1,
+      "projectId": "user-guide-1779956945245",
+      "status": "active",
+      "searchable": true,
+      "site": "github.com",
+      "app": "github",
+      "name": "Search GitHub issues",
+      "intent": "Search issues in a GitHub repository",
+      "description": "Open a repository Issues page and search by query.",
+      "tags": [
+        "github",
+        "issues",
+        "search"
+      ],
+      "riskLevel": "read_or_search",
+      "requiresConfirmation": false,
+      "variables": [
+        {
+          "name": "repo",
+          "type": "string",
+          "required": true,
+          "source": "task_or_url",
+          "examples": [
+            "example/project-a"
+          ]
+        },
+        {
+          "name": "query",
+          "type": "string",
+          "required": true,
+          "source": "task",
+          "examples": [
+            "recorded query"
+          ]
+        }
+      ],
+      "chunks": [
+        {
+          "id": "search_issues",
+          "name": "Search Issues",
+          "fromPageState": "github_repo_home",
+          "toPageState": "github_issues_search_results",
+          "preconditionText": "Code",
+          "postconditionText": "Showing 2 issue results",
+          "stepSummary": "Open Issues and search by query",
+          "riskLevel": "read_or_search",
+          "steps": [
+            {
+              "id": "click_issues",
+              "type": "click",
+              "target": {
+                "primary": {
+                  "strategy": "role",
+                  "role": "link",
+                  "name": "Issues"
+                },
+                "fallbacks": [
+                  {
+                    "strategy": "text",
+                    "value": "Issues"
+                  }
+                ]
+              },
+              "riskLevel": "read_or_search"
+            },
+            {
+              "id": "fill_query",
+              "type": "fill",
+              "target": {
+                "primary": {
+                  "strategy": "placeholder",
+                  "value": "Search all issues"
+                },
+                "fallbacks": [
+                  {
+                    "strategy": "css",
+                    "value": "[data-testid=\"issue-search\"]"
+                  }
+                ]
+              },
+              "value": "{{query}}",
+              "riskLevel": "read_or_search"
+            },
+            {
+              "id": "submit_search",
+              "type": "click",
+              "target": {
+                "primary": {
+                  "strategy": "role",
+                  "role": "button",
+                  "name": "Search"
+                }
+              },
+              "riskLevel": "read_or_search"
+            }
+          ],
+          "variableNames": [
+            "repo",
+            "query"
+          ],
+          "successRate": 1,
+          "selectorHealth": 1
+        }
+      ],
+      "startPageStates": [
+        "github_repo_home"
+      ],
+      "endPageStates": [
+        "github_issues_search_results"
+      ],
+      "createdAt": "0001-01-01T00:00:00Z",
+      "updatedAt": "2026-05-28T08:29:05.257278Z"
+    },
+    "status": "active",
+    "searchable": true,
+    "createdAt": "2026-05-28T08:29:05.249588Z",
+    "reviewedAt": "2026-05-28T08:29:05.257292Z"
+  },
+  "cand_8c5a481d905c7d18": {
+    "id": "cand_8c5a481d905c7d18",
+    "projectId": "real-user-1779956956713",
+    "source": "user_demo",
+    "task": "在运维订单控制台搜索 Acme delayed 订单，状态 delayed，并打开第一条订单详情",
+    "startUrl": "http://127.0.0.1:63154/workflow-ops-orders.html",
+    "recipeDraft": {
+      "id": "wf_manual_127_0_0_1_manual_1779956956975",
+      "version": 1,
+      "projectId": "real-user-1779956956713",
+      "status": "active",
+      "searchable": true,
+      "site": "127.0.0.1",
+      "name": "在运维订单控制台搜索 Acme delayed 订单，状态 delayed，并打开第一条订单详情",
+      "intent": "在运维订单控制台搜索 Acme delayed 订单，状态 delayed，并打开第一条订单详情",
+      "description": "Replay a user-recorded browser workflow. Original task: 在运维订单控制台搜索 Acme delayed 订单，状态 delayed，并打开第一条订单详情.",
+      "tags": [
+        "127.0.0.1"
+      ],
+      "riskLevel": "read_only",
+      "requiresConfirmation": false,
+      "variables": [
+        {
+          "name": "query",
+          "type": "string",
+          "required": true,
+          "source": "task"
+        }
+      ],
+      "chunks": [
+        {
+          "id": "chunk_1",
+          "name": "Recorded browser workflow",
+          "fromPageState": "127_0_0_1_page",
+          "toPageState": "127_0_0_1_page",
+          "stepSummary": "click Orders -\u003e select Status -\u003e click Apply filters -\u003e click Open first order",
+          "riskLevel": "read_only",
+          "steps": [
+            {
+              "id": "step_1",
+              "type": "click",
+              "target": {
+                "primary": {
+                  "strategy": "role",
+                  "role": "link",
+                  "name": "Orders"
+                },
+                "fallbacks": [
+                  {
+                    "strategy": "text",
+                    "value": "Orders"
+                  },
+                  {
+                    "strategy": "css",
+                    "value": "a"
+                  }
+                ]
+              },
+              "riskLevel": "read_or_search"
+            },
+            {
+              "id": "step_2",
+              "type": "select",
+              "target": {
+                "primary": {
+                  "strategy": "role",
+                  "role": "combobox",
+                  "name": "Status"
+                },
+                "fallbacks": [
+                  {
+                    "strategy": "text",
+                    "value": "open\n\t\t\t\t\t\t\tdelayed\n\t\t\t\t\t\t\tblocked\n\t\t\t\t\t\t\tresolved"
+                  },
+                  {
+                    "strategy": "css",
+                    "value": "#status-filter"
+                  }
+                ]
+              },
+              "value": "delayed",
+              "riskLevel": "read_or_search"
+            },
+            {
+              "id": "step_3",
+              "type": "click",
+              "target": {
+                "primary": {
+                  "strategy": "role",
+                  "role": "button",
+                  "name": "Apply filters"
+                },
+                "fallbacks": [
+                  {
+                    "strategy": "text",
+                    "value": "Apply filters"
+                  },
+                  {
+                    "strategy": "css",
+                    "value": "button"
+                  }
+                ]
+              },
+              "riskLevel": "read_or_search"
+            },
+            {
+              "id": "step_4",
+              "type": "click",
+              "target": {
+                "primary": {
+                  "strategy": "role",
+                  "role": "link",
+                  "name": "Open first order"
+                },
+                "fallbacks": [
+                  {
+                    "strategy": "text",
+                    "value": "Open first order"
+                  },
+                  {
+                    "strategy": "css",
+                    "value": "a"
+                  }
+                ]
+              },
+              "riskLevel": "read_or_search"
+            }
+          ],
+          "variableNames": [
+            "query"
+          ],
+          "successRate": 1,
+          "selectorHealth": 1
+        }
+      ],
+      "startPageStates": [
+        "127_0_0_1_page"
+      ],
+      "endPageStates": [
+        "127_0_0_1_page"
+      ],
+      "createdAt": "2026-05-28T08:29:17.308Z",
+      "updatedAt": "2026-05-28T08:29:17.408228Z"
+    },
+    "status": "active",
+    "searchable": true,
+    "createdAt": "2026-05-28T08:29:17.309385Z",
+    "reviewedAt": "2026-05-28T08:29:17.408262Z"
+  },
+  "cand_a7a7fa0a85621012": {
+    "id": "cand_a7a7fa0a85621012",
+    "projectId": "real-user-1779956948427",
+    "source": "user_demo",
+    "task": "在 github.com/alibaba/page-agent 的 Issues 里搜索 startsWith 报错",
+    "startUrl": "http://127.0.0.1:63112/workflow-github-issues.html",
+    "recipeDraft": {
+      "id": "wf_manual_127_0_0_1_manual_1779956948724",
+      "version": 1,
+      "projectId": "real-user-1779956948427",
+      "status": "active",
+      "searchable": true,
+      "site": "127.0.0.1",
+      "name": "在 github.com/alibaba/page-agent 的 Issues 里搜索 startsWith 报错",
+      "intent": "在 github.com/alibaba/page-agent 的 Issues 里搜索 startsWith 报错",
+      "description": "Replay a user-recorded browser workflow. Recorded GitHub repository: alibaba/page-agent. Search/input values are parameterized as {{query}}. Original task: 在 github.com/alibaba/page-agent 的 Issues 里搜索 startsWith 报错.",
+      "tags": [
+        "127.0.0.1",
+        "repo",
+        "search"
+      ],
+      "riskLevel": "read_or_search",
+      "requiresConfirmation": false,
+      "variables": [
+        {
+          "name": "repo",
+          "type": "string",
+          "required": true,
+          "source": "task_or_url",
+          "examples": [
+            "alibaba/page-agent"
+          ]
+        },
+        {
+          "name": "query",
+          "type": "string",
+          "required": true,
+          "source": "task",
+          "examples": [
+            "startsWith 报错"
+          ]
+        }
+      ],
+      "chunks": [
+        {
+          "id": "chunk_1",
+          "name": "Recorded browser workflow",
+          "fromPageState": "127_0_0_1_page",
+          "toPageState": "127_0_0_1_page",
+          "stepSummary": "click Issues -\u003e fill Search all issues -\u003e click Search",
+          "riskLevel": "read_or_search",
+          "steps": [
+            {
+              "id": "step_1",
+              "type": "click",
+              "target": {
+                "primary": {
+                  "strategy": "role",
+                  "role": "link",
+                  "name": "Issues"
+                },
+                "fallbacks": [
+                  {
+                    "strategy": "text",
+                    "value": "Issues"
+                  },
+                  {
+                    "strategy": "css",
+                    "value": "a"
+                  }
+                ]
+              },
+              "riskLevel": "read_or_search"
+            },
+            {
+              "id": "step_2",
+              "type": "fill",
+              "target": {
+                "primary": {
+                  "strategy": "role",
+                  "role": "textbox",
+                  "name": "Search all issues"
+                },
+                "fallbacks": [
+                  {
+                    "strategy": "css",
+                    "value": "input"
+                  }
+                ]
+              },
+              "value": "{{query}}",
+              "riskLevel": "read_or_search"
+            },
+            {
+              "id": "step_3",
+              "type": "click",
+              "target": {
+                "primary": {
+                  "strategy": "role",
+                  "role": "button",
+                  "name": "Search"
+                },
+                "fallbacks": [
+                  {
+                    "strategy": "text",
+                    "value": "Search"
+                  },
+                  {
+                    "strategy": "css",
+                    "value": "button"
+                  }
+                ]
+              },
+              "riskLevel": "read_or_search"
+            }
+          ],
+          "variableNames": [
+            "repo",
+            "query"
+          ],
+          "successRate": 1,
+          "selectorHealth": 1
+        }
+      ],
+      "startPageStates": [
+        "127_0_0_1_page"
+      ],
+      "endPageStates": [
+        "127_0_0_1_page"
+      ],
+      "createdAt": "2026-05-28T08:29:09.023Z",
+      "updatedAt": "2026-05-28T08:29:09.125104Z"
+    },
+    "status": "active",
+    "searchable": true,
+    "createdAt": "2026-05-28T08:29:09.024913Z",
+    "reviewedAt": "2026-05-28T08:29:09.12513Z"
+  },
+  "cand_cbaa2aa4e559157f": {
+    "id": "cand_cbaa2aa4e559157f",
+    "projectId": "real-user-1779956953556",
+    "source": "user_demo",
+    "task": "在 github.com/alibaba/page-agent 的 Issues 里搜索 startsWith 报错",
+    "startUrl": "http://127.0.0.1:63140/workflow-github-issues.html",
+    "recipeDraft": {
+      "id": "wf_manual_127_0_0_1_manual_1779956953792",
+      "version": 1,
+      "projectId": "real-user-1779956953556",
+      "status": "active",
+      "searchable": true,
+      "site": "127.0.0.1",
+      "name": "在 github.com/alibaba/page-agent 的 Issues 里搜索 startsWith 报错",
+      "intent": "在 github.com/alibaba/page-agent 的 Issues 里搜索 startsWith 报错",
+      "description": "Replay a user-recorded browser workflow. Recorded GitHub repository: alibaba/page-agent. Search/input values are parameterized as {{query}}. Original task: 在 github.com/alibaba/page-agent 的 Issues 里搜索 startsWith 报错.",
+      "tags": [
+        "127.0.0.1",
+        "repo",
+        "search"
+      ],
+      "riskLevel": "read_or_search",
+      "requiresConfirmation": false,
+      "variables": [
+        {
+          "name": "repo",
+          "type": "string",
+          "required": true,
+          "source": "task_or_url",
+          "examples": [
+            "alibaba/page-agent"
+          ]
+        },
+        {
+          "name": "query",
+          "type": "string",
+          "required": true,
+          "source": "task",
+          "examples": [
+            "startsWith 报错"
+          ]
+        }
+      ],
+      "chunks": [
+        {
+          "id": "chunk_1",
+          "name": "Recorded browser workflow",
+          "fromPageState": "127_0_0_1_page",
+          "toPageState": "127_0_0_1_page",
+          "stepSummary": "click Issues -\u003e fill Search all issues -\u003e click Search",
+          "riskLevel": "read_or_search",
+          "steps": [
+            {
+              "id": "step_1",
+              "type": "click",
+              "target": {
+                "primary": {
+                  "strategy": "role",
+                  "role": "link",
+                  "name": "Issues"
+                },
+                "fallbacks": [
+                  {
+                    "strategy": "text",
+                    "value": "Issues"
+                  },
+                  {
+                    "strategy": "css",
+                    "value": "a"
+                  }
+                ]
+              },
+              "riskLevel": "read_or_search"
+            },
+            {
+              "id": "step_2",
+              "type": "fill",
+              "target": {
+                "primary": {
+                  "strategy": "role",
+                  "role": "textbox",
+                  "name": "Search all issues"
+                },
+                "fallbacks": [
+                  {
+                    "strategy": "css",
+                    "value": "input"
+                  }
+                ]
+              },
+              "value": "{{query}}",
+              "riskLevel": "read_or_search"
+            },
+            {
+              "id": "step_3",
+              "type": "click",
+              "target": {
+                "primary": {
+                  "strategy": "role",
+                  "role": "button",
+                  "name": "Search"
+                },
+                "fallbacks": [
+                  {
+                    "strategy": "text",
+                    "value": "Search"
+                  },
+                  {
+                    "strategy": "css",
+                    "value": "button"
+                  }
+                ]
+              },
+              "riskLevel": "read_or_search"
+            }
+          ],
+          "variableNames": [
+            "repo",
+            "query"
+          ],
+          "successRate": 1,
+          "selectorHealth": 1
+        }
+      ],
+      "startPageStates": [
+        "127_0_0_1_page"
+      ],
+      "endPageStates": [
+        "127_0_0_1_page"
+      ],
+      "createdAt": "2026-05-28T08:29:14.042Z",
+      "updatedAt": "2026-05-28T08:29:14.158403Z"
+    },
+    "status": "active",
+    "searchable": true,
+    "createdAt": "2026-05-28T08:29:14.043343Z",
+    "reviewedAt": "2026-05-28T08:29:14.158434Z"
+  },
+  "cand_d999985453947976": {
+    "id": "cand_d999985453947976",
+    "projectId": "user-guide-dialog-1779956945893",
+    "source": "user_demo",
+    "task": "Search example/project-a issues for recorded query",
+    "startUrl": "https://github.com/example/project-a",
+    "recipeDraft": {
+      "id": "wf_user_guide_dialog_1779956945893",
+      "version": 1,
+      "projectId": "user-guide-dialog-1779956945893",
+      "status": "active",
+      "searchable": true,
+      "site": "github.com",
+      "app": "github",
+      "name": "Search GitHub issues",
+      "intent": "Search issues in a GitHub repository",
+      "description": "Open a repository Issues page and search by query.",
+      "tags": [
+        "github",
+        "issues",
+        "search"
+      ],
+      "riskLevel": "read_or_search",
+      "requiresConfirmation": false,
+      "variables": [
+        {
+          "name": "repo",
+          "type": "string",
+          "required": true,
+          "source": "task_or_url",
+          "examples": [
+            "example/project-a"
+          ]
+        },
+        {
+          "name": "query",
+          "type": "string",
+          "required": true,
+          "source": "task",
+          "examples": [
+            "recorded query"
+          ]
+        }
+      ],
+      "chunks": [
+        {
+          "id": "search_issues",
+          "name": "Search Issues",
+          "fromPageState": "github_repo_home",
+          "toPageState": "github_issues_search_results",
+          "preconditionText": "Code",
+          "postconditionText": "Showing 2 issue results",
+          "stepSummary": "Open Issues and search by query",
+          "riskLevel": "read_or_search",
+          "steps": [
+            {
+              "id": "click_issues",
+              "type": "click",
+              "target": {
+                "primary": {
+                  "strategy": "role",
+                  "role": "link",
+                  "name": "Issues"
+                },
+                "fallbacks": [
+                  {
+                    "strategy": "text",
+                    "value": "Issues"
+                  }
+                ]
+              },
+              "riskLevel": "read_or_search"
+            },
+            {
+              "id": "fill_query",
+              "type": "fill",
+              "target": {
+                "primary": {
+                  "strategy": "placeholder",
+                  "value": "Search all issues"
+                },
+                "fallbacks": [
+                  {
+                    "strategy": "css",
+                    "value": "[data-testid=\"issue-search\"]"
+                  }
+                ]
+              },
+              "value": "{{query}}",
+              "riskLevel": "read_or_search"
+            },
+            {
+              "id": "submit_search",
+              "type": "click",
+              "target": {
+                "primary": {
+                  "strategy": "role",
+                  "role": "button",
+                  "name": "Search"
+                }
+              },
+              "riskLevel": "read_or_search"
+            }
+          ],
+          "variableNames": [
+            "repo",
+            "query"
+          ],
+          "successRate": 1,
+          "selectorHealth": 1
+        }
+      ],
+      "startPageStates": [
+        "github_repo_home"
+      ],
+      "endPageStates": [
+        "github_issues_search_results"
+      ],
+      "createdAt": "0001-01-01T00:00:00Z",
+      "updatedAt": "2026-05-28T08:29:05.898339Z"
+    },
+    "status": "active",
+    "searchable": true,
+    "createdAt": "2026-05-28T08:29:05.894377Z",
+    "reviewedAt": "2026-05-28T08:29:05.898355Z"
+  },
+  "cand_e14747359ff850f8": {
+    "id": "cand_e14747359ff850f8",
+    "projectId": "real-user-1779956950986",
+    "source": "user_demo",
+    "task": "在 github.com/alibaba/page-agent 的 Issues 里搜索 startsWith 报错",
+    "startUrl": "http://127.0.0.1:63126/workflow-github-issues.html",
+    "recipeDraft": {
+      "id": "wf_manual_127_0_0_1_manual_1779956951275",
+      "version": 1,
+      "projectId": "real-user-1779956950986",
+      "status": "active",
+      "searchable": true,
+      "site": "127.0.0.1",
+      "name": "在 github.com/alibaba/page-agent 的 Issues 里搜索 startsWith 报错",
+      "intent": "在 github.com/alibaba/page-agent 的 Issues 里搜索 startsWith 报错",
+      "description": "Replay a user-recorded browser workflow. Recorded GitHub repository: alibaba/page-agent. Search/input values are parameterized as {{query}}. Original task: 在 github.com/alibaba/page-agent 的 Issues 里搜索 startsWith 报错.",
+      "tags": [
+        "127.0.0.1",
+        "repo",
+        "search"
+      ],
+      "riskLevel": "read_or_search",
+      "requiresConfirmation": false,
+      "variables": [
+        {
+          "name": "repo",
+          "type": "string",
+          "required": true,
+          "source": "task_or_url",
+          "examples": [
+            "alibaba/page-agent"
+          ]
+        },
+        {
+          "name": "query",
+          "type": "string",
+          "required": true,
+          "source": "task",
+          "examples": [
+            "startsWith 报错"
+          ]
+        }
+      ],
+      "chunks": [
+        {
+          "id": "chunk_1",
+          "name": "Recorded browser workflow",
+          "fromPageState": "127_0_0_1_page",
+          "toPageState": "127_0_0_1_page",
+          "stepSummary": "click Issues -\u003e fill Search all issues -\u003e click Search",
+          "riskLevel": "read_or_search",
+          "steps": [
+            {
+              "id": "step_1",
+              "type": "click",
+              "target": {
+                "primary": {
+                  "strategy": "role",
+                  "role": "link",
+                  "name": "Issues"
+                },
+                "fallbacks": [
+                  {
+                    "strategy": "text",
+                    "value": "Issues"
+                  },
+                  {
+                    "strategy": "css",
+                    "value": "a"
+                  }
+                ]
+              },
+              "riskLevel": "read_or_search"
+            },
+            {
+              "id": "step_2",
+              "type": "fill",
+              "target": {
+                "primary": {
+                  "strategy": "role",
+                  "role": "textbox",
+                  "name": "Search all issues"
+                },
+                "fallbacks": [
+                  {
+                    "strategy": "css",
+                    "value": "input"
+                  }
+                ]
+              },
+              "value": "{{query}}",
+              "riskLevel": "read_or_search"
+            },
+            {
+              "id": "step_3",
+              "type": "click",
+              "target": {
+                "primary": {
+                  "strategy": "role",
+                  "role": "button",
+                  "name": "Search"
+                },
+                "fallbacks": [
+                  {
+                    "strategy": "text",
+                    "value": "Search"
+                  },
+                  {
+                    "strategy": "css",
+                    "value": "button"
+                  }
+                ]
+              },
+              "riskLevel": "read_or_search"
+            }
+          ],
+          "variableNames": [
+            "repo",
+            "query"
+          ],
+          "successRate": 1,
+          "selectorHealth": 1
+        }
+      ],
+      "startPageStates": [
+        "127_0_0_1_page"
+      ],
+      "endPageStates": [
+        "127_0_0_1_page"
+      ],
+      "createdAt": "2026-05-28T08:29:11.559Z",
+      "updatedAt": "2026-05-28T08:29:11.675083Z"
+    },
+    "status": "active",
+    "searchable": true,
+    "createdAt": "2026-05-28T08:29:11.560592Z",
+    "reviewedAt": "2026-05-28T08:29:11.675122Z"
+  }
+}

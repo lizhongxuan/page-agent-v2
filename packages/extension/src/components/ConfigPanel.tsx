@@ -45,6 +45,15 @@ export function ConfigPanel({ config, onSave, onClose }: ConfigPanelProps) {
 	const [knowledgeSettings, setKnowledgeSettings] = useState<KnowledgeSettings>(
 		config?.knowledgeSettings ?? defaultKnowledgeSettings
 	)
+	const [workflowBackendBaseUrl, setWorkflowBackendBaseUrl] = useState(
+		config?.workflowBackend?.baseUrl ?? ''
+	)
+	const [workflowBackendProjectId, setWorkflowBackendProjectId] = useState(
+		config?.workflowBackend?.projectId ?? 'default'
+	)
+	const [workflowBackendApiKey, setWorkflowBackendApiKey] = useState(
+		config?.workflowBackend?.apiKey ?? ''
+	)
 	const [advancedOpen, setAdvancedOpen] = useState(false)
 	const [saving, setSaving] = useState(false)
 	const [userAuthToken, setUserAuthToken] = useState('')
@@ -65,6 +74,9 @@ export function ConfigPanel({ config, onSave, onClose }: ConfigPanelProps) {
 		setExperimentalIncludeAllTabs(config?.experimentalIncludeAllTabs ?? false)
 		setDisableNamedToolChoice(config?.disableNamedToolChoice ?? false)
 		setKnowledgeSettings(config?.knowledgeSettings ?? defaultKnowledgeSettings)
+		setWorkflowBackendBaseUrl(config?.workflowBackend?.baseUrl ?? '')
+		setWorkflowBackendProjectId(config?.workflowBackend?.projectId ?? 'default')
+		setWorkflowBackendApiKey(config?.workflowBackend?.apiKey ?? '')
 	}
 
 	// Poll for user auth token every second until found
@@ -113,6 +125,13 @@ export function ConfigPanel({ config, onSave, onClose }: ConfigPanelProps) {
 				experimentalIncludeAllTabs,
 				disableNamedToolChoice,
 				knowledgeSettings,
+				workflowBackend: workflowBackendBaseUrl.trim()
+					? {
+							baseUrl: workflowBackendBaseUrl.trim(),
+							projectId: workflowBackendProjectId.trim() || 'default',
+							apiKey: workflowBackendApiKey.trim() || undefined,
+						}
+					: undefined,
 			})
 		} finally {
 			setSaving(false)
@@ -255,6 +274,34 @@ export function ConfigPanel({ config, onSave, onClose }: ConfigPanelProps) {
 					<option value="en-US">English</option>
 					<option value="zh-CN">中文</option>
 				</select>
+			</div>
+
+			<div className="flex flex-col gap-2 p-3 rounded-md border bg-muted/30">
+				<div>
+					<div className="text-xs font-medium">Workflow Backend</div>
+					<p className="text-[10px] text-muted-foreground">
+						Enable Playwright workflow recording, retrieval, and replay.
+					</p>
+				</div>
+				<Input
+					placeholder="http://127.0.0.1:38402"
+					value={workflowBackendBaseUrl}
+					onChange={(e) => setWorkflowBackendBaseUrl(e.target.value)}
+					className="text-xs h-8"
+				/>
+				<Input
+					placeholder="Project ID"
+					value={workflowBackendProjectId}
+					onChange={(e) => setWorkflowBackendProjectId(e.target.value)}
+					className="text-xs h-8"
+				/>
+				<Input
+					type="password"
+					placeholder="Workflow Backend API Key"
+					value={workflowBackendApiKey}
+					onChange={(e) => setWorkflowBackendApiKey(e.target.value)}
+					className="text-xs h-8"
+				/>
 			</div>
 
 			<div className="flex flex-col gap-2 p-3 rounded-md border bg-muted/30">

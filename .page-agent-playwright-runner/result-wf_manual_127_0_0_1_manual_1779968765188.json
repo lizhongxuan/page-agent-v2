@@ -1,0 +1,103 @@
+{
+  "logs": [
+    {
+      "timestamp": "2026-05-28T11:46:06.207Z",
+      "event": "chunk_started",
+      "chunkId": "chunk_1",
+      "pageState": "127_0_0_1_page",
+      "appliedInterruptHandlerId": ""
+    },
+    {
+      "timestamp": "2026-05-28T11:46:06.233Z",
+      "event": "interrupt_handler_not_found",
+      "chunkId": "chunk_1",
+      "reason": "before_chunk",
+      "message": "No active interrupt handlers are available."
+    },
+    {
+      "timestamp": "2026-05-28T11:46:06.238Z",
+      "event": "from_page_state_validated",
+      "chunkId": "chunk_1",
+      "pageState": "127_0_0_1_page"
+    },
+    {
+      "timestamp": "2026-05-28T11:46:06.242Z",
+      "event": "selector_attempted",
+      "stepId": "step_1",
+      "selectorAttempts": [
+        {
+          "timestamp": "2026-05-28T11:46:06.242Z",
+          "stepId": "step_1",
+          "strategy": "role",
+          "selector": "role link Issues",
+          "result": "success",
+          "failureReason": ""
+        }
+      ]
+    },
+    {
+      "timestamp": "2026-05-28T11:46:06.293Z",
+      "event": "selector_attempted",
+      "stepId": "step_2",
+      "selectorAttempts": [
+        {
+          "timestamp": "2026-05-28T11:46:06.293Z",
+          "stepId": "step_2",
+          "strategy": "role",
+          "selector": "role textbox Search all issues",
+          "result": "success",
+          "failureReason": ""
+        }
+      ]
+    },
+    {
+      "timestamp": "2026-05-28T11:46:06.308Z",
+      "event": "selector_attempted",
+      "stepId": "step_3",
+      "selectorAttempts": [
+        {
+          "timestamp": "2026-05-28T11:46:06.308Z",
+          "stepId": "step_3",
+          "strategy": "role",
+          "selector": "role button Search",
+          "result": "success",
+          "failureReason": ""
+        }
+      ]
+    },
+    {
+      "timestamp": "2026-05-28T11:46:06.328Z",
+      "event": "chunk_finished",
+      "chunkId": "chunk_1",
+      "pageState": "127_0_0_1_page",
+      "appliedInterruptHandlerId": ""
+    }
+  ],
+  "selectorStats": [
+    {
+      "stepId": "step_1",
+      "strategy": "role",
+      "selector": "role link Issues",
+      "successCount": 1,
+      "failCount": 0,
+      "lastFailureReason": ""
+    },
+    {
+      "stepId": "step_2",
+      "strategy": "role",
+      "selector": "role textbox Search all issues",
+      "successCount": 1,
+      "failCount": 0,
+      "lastFailureReason": ""
+    },
+    {
+      "stepId": "step_3",
+      "strategy": "role",
+      "selector": "role button Search",
+      "successCount": 1,
+      "failCount": 0,
+      "lastFailureReason": ""
+    }
+  ],
+  "artifactRefs": []
+}

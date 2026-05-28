@@ -1,0 +1,80 @@
+{
+  "evt_1be85a65d94fb988": {
+    "id": "evt_1be85a65d94fb988",
+    "type": "workflow_approved",
+    "idempotencyKey": "workflow_approved:wf_user_guide_1779954566230:v1",
+    "payload": {
+      "projectId": "user-guide-1779954566230",
+      "version": 1,
+      "workflowId": "wf_user_guide_1779954566230"
+    },
+    "status": "pending_review",
+    "createdAt": "2026-05-28T07:49:26.24767Z",
+    "processedAt": "0001-01-01T00:00:00Z"
+  },
+  "evt_1f78bf5b4bd0acff": {
+    "id": "evt_1f78bf5b4bd0acff",
+    "type": "workflow_approved",
+    "idempotencyKey": "workflow_approved:wf_user_guide_dialog_1779954566906:v1",
+    "payload": {
+      "projectId": "user-guide-dialog-1779954566906",
+      "version": 1,
+      "workflowId": "wf_user_guide_dialog_1779954566906"
+    },
+    "status": "pending_review",
+    "createdAt": "2026-05-28T07:49:26.915624Z",
+    "processedAt": "0001-01-01T00:00:00Z"
+  },
+  "evt_2c8385f230da8b3a": {
+    "id": "evt_2c8385f230da8b3a",
+    "type": "run_stats_updated",
+    "idempotencyKey": "run_stats_updated:run_20260528074926307579000_581000",
+    "payload": {
+      "runId": "run_20260528074926307579000_581000",
+      "version": 1,
+      "workflowId": "wf_user_guide_1779954566230"
+    },
+    "status": "pending_review",
+    "createdAt": "2026-05-28T07:49:26.884427Z",
+    "processedAt": "0001-01-01T00:00:00Z"
+  },
+  "evt_3810dcc6396153d2": {
+    "id": "evt_3810dcc6396153d2",
+    "type": "run_stats_updated",
+    "idempotencyKey": "run_stats_updated:run_20260528074928418619000_623000",
+    "payload": {
+      "runId": "run_20260528074928418619000_623000",
+      "version": 1,
+      "workflowId": "wf_manual_127_0_0_1_manual_1779954567901"
+    },
+    "status": "pending_review",
+    "createdAt": "2026-05-28T07:49:28.80766Z",
+    "processedAt": "0001-01-01T00:00:00Z"
+  },
+  "evt_4876fc4d093d5f83": {
+    "id": "evt_4876fc4d093d5f83",
+    "type": "workflow_approved",
+    "idempotencyKey": "workflow_approved:wf_manual_127_0_0_1_manual_1779954567901:v1",
+    "payload": {
+      "projectId": "real-user-1779954567709",
+      "version": 1,
+      "workflowId": "wf_manual_127_0_0_1_manual_1779954567901"
+    },
+    "status": "pending_review",
+    "createdAt": "2026-05-28T07:49:28.24655Z",
+    "processedAt": "0001-01-01T00:00:00Z"
+  },
+  "evt_c9d75f4a5281e6b3": {
+    "id": "evt_c9d75f4a5281e6b3",
+    "type": "run_stats_updated",
+    "idempotencyKey": "run_stats_updated:run_20260528074926933153000_156000",
+    "payload": {
+      "runId": "run_20260528074926933153000_156000",
+      "version": 1,
+      "workflowId": "wf_user_guide_dialog_1779954566906"
+    },
+    "status": "pending_review",
+    "createdAt": "2026-05-28T07:49:27.67946Z",
+    "processedAt": "0001-01-01T00:00:00Z"
+  }
+}

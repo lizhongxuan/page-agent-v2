@@ -39,6 +39,13 @@
         "postpublish": "npm run postpublish --workspaces --if-present",
         "typecheck": "tsc --noEmit -p tsconfig.typecheck.json && tsc --noEmit -p packages/extension/tsconfig.json",
         "lint": "eslint .",
+        "workflow:qdrant": "scripts/start-qdrant.sh",
+        "workflow:backend": "scripts/start-workflow-backend.sh",
+        "workflow:test": "scripts/workflow-test.sh",
+        "workflow:e2e:real-user": "scripts/workflow-real-user-e2e.sh",
+        "workflow:deploy": "scripts/deploy-workflow-stack.sh start",
+        "workflow:deploy:stop": "scripts/deploy-workflow-stack.sh stop",
+        "workflow:deploy:status": "scripts/deploy-workflow-stack.sh status",
         "ci": "node scripts/ci.js",
         "cleanup": "rm -rf packages/*/dist && rm -rf packages/*/.output",
         "prepare": "husky || true"

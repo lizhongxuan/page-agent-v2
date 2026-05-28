@@ -1,0 +1,92 @@
+{
+  "evt_47fd15a66b1487c9": {
+    "id": "evt_47fd15a66b1487c9",
+    "type": "run_stats_updated",
+    "idempotencyKey": "run_stats_updated:run_20260528132637667329000_377000",
+    "payload": {
+      "runId": "run_20260528132637667329000_377000",
+      "version": 1,
+      "workflowId": "wf_user_guide_dialog_1779974797644"
+    },
+    "status": "pending_review",
+    "createdAt": "2026-05-28T13:26:38.277417Z",
+    "processedAt": "0001-01-01T00:00:00Z"
+  },
+  "evt_5016d71b7413ca46": {
+    "id": "evt_5016d71b7413ca46",
+    "type": "repair_patch_approved",
+    "idempotencyKey": "repair_patch_approved:patch_20cf1b4cb41ed8bc:v1",
+    "payload": {
+      "patchId": "patch_20cf1b4cb41ed8bc",
+      "projectId": "user-guide-repair-1779974798287"
+    },
+    "status": "pending_review",
+    "createdAt": "2026-05-28T13:26:38.311514Z",
+    "processedAt": "0001-01-01T00:00:00Z"
+  },
+  "evt_58b0f27a3971c2de": {
+    "id": "evt_58b0f27a3971c2de",
+    "type": "workflow_approved",
+    "idempotencyKey": "workflow_approved:wf_user_guide_1779974796820:v1",
+    "payload": {
+      "projectId": "user-guide-1779974796820",
+      "version": 1,
+      "workflowId": "wf_user_guide_1779974796820"
+    },
+    "status": "pending_review",
+    "createdAt": "2026-05-28T13:26:36.850085Z",
+    "processedAt": "0001-01-01T00:00:00Z"
+  },
+  "evt_991c2160f9276673": {
+    "id": "evt_991c2160f9276673",
+    "type": "workflow_approved",
+    "idempotencyKey": "workflow_approved:wf_user_guide_repair_1779974798287:v1",
+    "payload": {
+      "projectId": "user-guide-repair-1779974798287",
+      "version": 1,
+      "workflowId": "wf_user_guide_repair_1779974798287"
+    },
+    "status": "pending_review",
+    "createdAt": "2026-05-28T13:26:38.294981Z",
+    "processedAt": "0001-01-01T00:00:00Z"
+  },
+  "evt_9f9f94e64c8dfe8d": {
+    "id": "evt_9f9f94e64c8dfe8d",
+    "type": "workflow_approved",
+    "idempotencyKey": "workflow_approved:wf_user_guide_dialog_1779974797644:v1",
+    "payload": {
+      "projectId": "user-guide-dialog-1779974797644",
+      "version": 1,
+      "workflowId": "wf_user_guide_dialog_1779974797644"
+    },
+    "status": "pending_review",
+    "createdAt": "2026-05-28T13:26:37.653434Z",
+    "processedAt": "0001-01-01T00:00:00Z"
+  },
+  "evt_a17bbe790dfc2c48": {
+    "id": "evt_a17bbe790dfc2c48",
+    "type": "run_stats_updated",
+    "idempotencyKey": "run_stats_updated:run_20260528132636914044000_48000",
+    "payload": {
+      "runId": "run_20260528132636914044000_48000",
+      "version": 1,
+      "workflowId": "wf_user_guide_1779974796820"
+    },
+    "status": "pending_review",
+    "createdAt": "2026-05-28T13:26:37.632348Z",
+    "processedAt": "0001-01-01T00:00:00Z"
+  },
+  "evt_ba1d9a407c992231": {
+    "id": "evt_ba1d9a407c992231",
+    "type": "run_stats_updated",
+    "idempotencyKey": "run_stats_updated:run_20260528132638314235000_238000",
+    "payload": {
+      "runId": "run_20260528132638314235000_238000",
+      "version": 1,
+      "workflowId": "wf_user_guide_repair_1779974798287"
+    },
+    "status": "pending_review",
+    "createdAt": "2026-05-28T13:26:49.041034Z",
+    "processedAt": "0001-01-01T00:00:00Z"
+  }
+}

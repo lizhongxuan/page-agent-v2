@@ -1,0 +1,173 @@
+{
+  "candidates": [
+    {
+      "id": "cand_2a1262f06282c717",
+      "projectId": "real-user-1779974639456",
+      "source": "user_demo",
+      "task": "在运维订单控制台搜索 Acme delayed 订单，状态 delayed，并打开第一条订单详情",
+      "startUrl": "http://127.0.0.1:56739/workflow-ops-orders.html",
+      "recipeDraft": {
+        "id": "wf_manual_127_0_0_1_manual_1779974639674",
+        "version": 1,
+        "projectId": "real-user-1779974639456",
+        "status": "active",
+        "searchable": true,
+        "site": "127.0.0.1",
+        "name": "在运维订单控制台搜索 Acme delayed 订单，状态 delayed，并打开第一条订单详情",
+        "intent": "在运维订单控制台搜索 Acme delayed 订单，状态 delayed，并打开第一条订单详情",
+        "description": "Replay a user-recorded browser workflow. Search/input values are parameterized as {{query}}. Original task: 在运维订单控制台搜索 Acme delayed 订单，状态 delayed，并打开第一条订单详情.",
+        "tags": [
+          "127.0.0.1",
+          "search"
+        ],
+        "riskLevel": "read_or_search",
+        "requiresConfirmation": false,
+        "variables": [
+          {
+            "name": "query",
+            "type": "string",
+            "required": true,
+            "source": "task",
+            "examples": [
+              "Acme delayed 订单"
+            ]
+          }
+        ],
+        "chunks": [
+          {
+            "id": "chunk_1",
+            "name": "Recorded browser workflow",
+            "fromPageState": "127_0_0_1_page",
+            "toPageState": "127_0_0_1_page",
+            "stepSummary": "click Orders -> fill Search customers or orders -> select Status -> click Apply filters -> click Open first order",
+            "riskLevel": "read_or_search",
+            "steps": [
+              {
+                "id": "step_1",
+                "type": "click",
+                "target": {
+                  "primary": {
+                    "strategy": "role",
+                    "role": "link",
+                    "name": "Orders"
+                  },
+                  "fallbacks": [
+                    {
+                      "strategy": "text",
+                      "value": "Orders"
+                    },
+                    {
+                      "strategy": "css",
+                      "value": "a[href=\"\\#orders\"]"
+                    }
+                  ]
+                },
+                "riskLevel": "read_or_search"
+              },
+              {
+                "id": "step_2",
+                "type": "fill",
+                "target": {
+                  "primary": {
+                    "strategy": "role",
+                    "role": "textbox",
+                    "name": "Search customers or orders"
+                  },
+                  "fallbacks": [
+                    {
+                      "strategy": "css",
+                      "value": "#order-query"
+                    }
+                  ]
+                },
+                "value": "{{query}}",
+                "riskLevel": "read_or_search"
+              },
+              {
+                "id": "step_3",
+                "type": "select",
+                "target": {
+                  "primary": {
+                    "strategy": "role",
+                    "role": "combobox",
+                    "name": "Status"
+                  },
+                  "fallbacks": [
+                    {
+                      "strategy": "text",
+                      "value": "open\n\t\t\t\t\t\t\tdelayed\n\t\t\t\t\t\t\tblocked\n\t\t\t\t\t\t\tresolved"
+                    },
+                    {
+                      "strategy": "css",
+                      "value": "#status-filter"
+                    }
+                  ]
+                },
+                "value": "delayed",
+                "riskLevel": "read_or_search"
+              },
+              {
+                "id": "step_4",
+                "type": "click",
+                "target": {
+                  "primary": {
+                    "strategy": "role",
+                    "role": "button",
+                    "name": "Apply filters"
+                  },
+                  "fallbacks": [
+                    {
+                      "strategy": "text",
+                      "value": "Apply filters"
+                    }
+                  ]
+                },
+                "riskLevel": "read_or_search"
+              },
+              {
+                "id": "step_5",
+                "type": "click",
+                "target": {
+                  "primary": {
+                    "strategy": "role",
+                    "role": "link",
+                    "name": "Open first order"
+                  },
+                  "fallbacks": [
+                    {
+                      "strategy": "text",
+                      "value": "Open first order"
+                    },
+                    {
+                      "strategy": "css",
+                      "value": "a[href=\"\\#order-detail\"]"
+                    }
+                  ]
+                },
+                "riskLevel": "read_or_search"
+              }
+            ],
+            "variableNames": [
+              "query"
+            ],
+            "successRate": 1,
+            "selectorHealth": 1,
+            "lastFailureAt": "0001-01-01T00:00:00Z"
+          }
+        ],
+        "startPageStates": [
+          "127_0_0_1_page"
+        ],
+        "endPageStates": [
+          "127_0_0_1_page"
+        ],
+        "createdAt": "2026-05-28T13:23:59.958Z",
+        "updatedAt": "2026-05-28T13:24:00.02481Z"
+      },
+      "status": "active",
+      "searchable": true,
+      "createdAt": "2026-05-28T13:23:59.960117Z",
+      "reviewedAt": "2026-05-28T13:24:00.024946Z"
+    }
+  ]
+}

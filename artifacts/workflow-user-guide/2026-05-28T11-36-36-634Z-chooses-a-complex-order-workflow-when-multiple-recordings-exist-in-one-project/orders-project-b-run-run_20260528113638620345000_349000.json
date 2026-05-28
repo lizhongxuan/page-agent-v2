@@ -1,0 +1,96 @@
+{
+  "id": "run_20260528113638620345000_349000",
+  "projectId": "real-user-1779968197312",
+  "workflowId": "wf_manual_127_0_0_1_manual_1779968198068",
+  "version": 1,
+  "task": "",
+  "url": "http://127.0.0.1:50367/workflow-ops-orders.html",
+  "variables": {
+    "query": "[redacted]"
+  },
+  "result": "succeeded",
+  "logs": [
+    {
+      "timestamp": "2026-05-28T11:36:38.85Z",
+      "event": "chunk_started",
+      "chunkId": "chunk_1",
+      "pageState": "127_0_0_1_page"
+    },
+    {
+      "timestamp": "2026-05-28T11:36:38.871Z",
+      "event": "interrupt_handler_not_found",
+      "chunkId": "chunk_1",
+      "message": "No active interrupt handlers are available.",
+      "reason": "before_chunk"
+    },
+    {
+      "timestamp": "2026-05-28T11:36:38.875Z",
+      "event": "from_page_state_validated",
+      "chunkId": "chunk_1",
+      "pageState": "127_0_0_1_page"
+    },
+    {
+      "timestamp": "2026-05-28T11:36:38.877Z",
+      "event": "selector_attempted",
+      "stepId": "step_1",
+      "selectorAttempts": [
+        {
+          "timestamp": "2026-05-28T11:36:38.877Z",
+          "stepId": "step_1",
+          "strategy": "role",
+          "selector": "role link Orders",
+          "result": "success"
+        }
+      ]
+    },
+    {
+      "timestamp": "2026-05-28T11:36:38.92Z",
+      "event": "selector_attempted",
+      "stepId": "step_2",
+      "selectorAttempts": [
+        {
+          "timestamp": "2026-05-28T11:36:38.92Z",
+          "stepId": "step_2",
+          "strategy": "role",
+          "selector": "role combobox Status",
+          "result": "success"
+        }
+      ]
+    },
+    {
+      "timestamp": "2026-05-28T11:36:38.923Z",
+      "event": "selector_attempted",
+      "stepId": "step_3",
+      "selectorAttempts": [
+        {
+          "timestamp": "2026-05-28T11:36:38.923Z",
+          "stepId": "step_3",
+          "strategy": "role",
+          "selector": "role button Apply filters",
+          "result": "success"
+        }
+      ]
+    },
+    {
+      "timestamp": "2026-05-28T11:36:38.938Z",
+      "event": "selector_attempted",
+      "stepId": "step_4",
+      "selectorAttempts": [
+        {
+          "timestamp": "2026-05-28T11:36:38.938Z",
+          "stepId": "step_4",
+          "strategy": "role",
+          "selector": "role link Open first order",
+          "result": "success"
+        }
+      ]
+    },
+    {
+      "timestamp": "2026-05-28T11:36:38.955Z",
+      "event": "chunk_finished",
+      "chunkId": "chunk_1",
+      "pageState": "127_0_0_1_page"
+    }
+  ],
+  "createdAt": "2026-05-28T11:36:38.62035Z"
+}

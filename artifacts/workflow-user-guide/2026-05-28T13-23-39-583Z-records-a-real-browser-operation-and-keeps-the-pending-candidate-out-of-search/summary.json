@@ -1,0 +1,11 @@
+{
+  "backendUrl": "http://127.0.0.1:38422",
+  "dialogFixtureUrl": "http://127.0.0.1:56535/workflow-github-issues-with-dialog.html",
+  "extensionId": "akldabonmimlicnjlflnapfeklbfemhj",
+  "fixtureUrl": "http://127.0.0.1:56535/workflow-github-issues.html",
+  "ordersDialogFixtureUrl": "http://127.0.0.1:56535/workflow-ops-orders-with-dialog.html",
+  "ordersFixtureUrl": "http://127.0.0.1:56535/workflow-ops-orders.html",
+  "projectId": "real-user-1779974620513",
+  "assertion": "pending candidate is not searchable until user confirms enablement",
+  "candidateId": "cand_bb217a0f1743be18"
+}

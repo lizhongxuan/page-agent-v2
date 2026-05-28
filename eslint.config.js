@@ -12,6 +12,7 @@ export default defineConfig([
 		'**/.wxt',
 		'**/.output',
 		'test-results',
+		'workflow-use/**',
 	]),
 	{
 		files: ['**/*.{ts,tsx}'],

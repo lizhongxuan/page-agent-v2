@@ -1,0 +1,113 @@
+{
+  "wf_user_guide_1779974470225:v1:click_issues:role:role link Issues": {
+    "workflowId": "wf_user_guide_1779974470225",
+    "version": 1,
+    "stepId": "click_issues",
+    "strategy": "role",
+    "selector": "role link Issues",
+    "successCount": 1,
+    "failCount": 0,
+    "lastSuccessAt": "2026-05-28T13:21:10.856329Z",
+    "lastFailAt": "0001-01-01T00:00:00Z"
+  },
+  "wf_user_guide_1779974470225:v1:fill_query:placeholder:placeholder Search all issues": {
+    "workflowId": "wf_user_guide_1779974470225",
+    "version": 1,
+    "stepId": "fill_query",
+    "strategy": "placeholder",
+    "selector": "placeholder Search all issues",
+    "successCount": 1,
+    "failCount": 0,
+    "lastSuccessAt": "2026-05-28T13:21:10.856329Z",
+    "lastFailAt": "0001-01-01T00:00:00Z"
+  },
+  "wf_user_guide_1779974470225:v1:submit_search:role:role button Search": {
+    "workflowId": "wf_user_guide_1779974470225",
+    "version": 1,
+    "stepId": "submit_search",
+    "strategy": "role",
+    "selector": "role button Search",
+    "successCount": 1,
+    "failCount": 0,
+    "lastSuccessAt": "2026-05-28T13:21:10.856329Z",
+    "lastFailAt": "0001-01-01T00:00:00Z"
+  },
+  "wf_user_guide_dialog_1779974470893:v1:click_issues:role:role link Issues": {
+    "workflowId": "wf_user_guide_dialog_1779974470893",
+    "version": 1,
+    "stepId": "click_issues",
+    "strategy": "role",
+    "selector": "role link Issues",
+    "successCount": 1,
+    "failCount": 0,
+    "lastSuccessAt": "2026-05-28T13:21:11.70948Z",
+    "lastFailAt": "0001-01-01T00:00:00Z"
+  },
+  "wf_user_guide_dialog_1779974470893:v1:fill_query:placeholder:placeholder Search all issues": {
+    "workflowId": "wf_user_guide_dialog_1779974470893",
+    "version": 1,
+    "stepId": "fill_query",
+    "strategy": "placeholder",
+    "selector": "placeholder Search all issues",
+    "successCount": 1,
+    "failCount": 0,
+    "lastSuccessAt": "2026-05-28T13:21:11.70948Z",
+    "lastFailAt": "0001-01-01T00:00:00Z"
+  },
+  "wf_user_guide_dialog_1779974470893:v1:submit_search:role:role button Search": {
+    "workflowId": "wf_user_guide_dialog_1779974470893",
+    "version": 1,
+    "stepId": "submit_search",
+    "strategy": "role",
+    "selector": "role button Search",
+    "successCount": 1,
+    "failCount": 0,
+    "lastSuccessAt": "2026-05-28T13:21:11.70948Z",
+    "lastFailAt": "0001-01-01T00:00:00Z"
+  },
+  "wf_user_guide_repair_1779974471740:v1:click_issues:role:role link Issues": {
+    "workflowId": "wf_user_guide_repair_1779974471740",
+    "version": 1,
+    "stepId": "click_issues",
+    "strategy": "role",
+    "selector": "role link Issues",
+    "successCount": 1,
+    "failCount": 0,
+    "lastSuccessAt": "2026-05-28T13:21:22.664149Z",
+    "lastFailAt": "0001-01-01T00:00:00Z"
+  },
+  "wf_user_guide_repair_1779974471740:v1:fill_query:css:css input[name=\"q\"]": {
+    "workflowId": "wf_user_guide_repair_1779974471740",
+    "version": 1,
+    "stepId": "fill_query",
+    "strategy": "css",
+    "selector": "css input[name=\"q\"]",
+    "successCount": 1,
+    "failCount": 0,
+    "lastSuccessAt": "2026-05-28T13:21:22.664149Z",
+    "lastFailAt": "0001-01-01T00:00:00Z"
+  },
+  "wf_user_guide_repair_1779974471740:v1:fill_query:placeholder:placeholder Old issue search": {
+    "workflowId": "wf_user_guide_repair_1779974471740",
+    "version": 1,
+    "stepId": "fill_query",
+    "strategy": "placeholder",
+    "selector": "placeholder Old issue search",
+    "successCount": 0,
+    "failCount": 1,
+    "lastSuccessAt": "0001-01-01T00:00:00Z",
+    "lastFailAt": "2026-05-28T13:21:22.664149Z",
+    "lastFailureReason": "locator.waitFor: Timeout 5000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByPlaceholder('Old issue search').first() to be visible\u001b[22m\n"
+  },
+  "wf_user_guide_repair_1779974471740:v1:submit_search:role:role button Search": {
+    "workflowId": "wf_user_guide_repair_1779974471740",
+    "version": 1,
+    "stepId": "submit_search",
+    "strategy": "role",
+    "selector": "role button Search",
+    "successCount": 1,
+    "failCount": 0,
+    "lastSuccessAt": "2026-05-28T13:21:22.664149Z",
+    "lastFailAt": "0001-01-01T00:00:00Z"
+  }
+}

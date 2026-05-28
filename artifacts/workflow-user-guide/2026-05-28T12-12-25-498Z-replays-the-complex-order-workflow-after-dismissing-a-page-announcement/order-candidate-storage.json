@@ -1,0 +1,26 @@
+{
+  "PageAgentExtUserAuthToken": "a0386fea-d8a0-4157-9d3f-cc1b4a42f6ab",
+  "advancedConfig": {
+    "disableNamedToolChoice": false,
+    "experimentalIncludeAllTabs": false,
+    "experimentalLlmsTxt": false
+  },
+  "isAgentRunning": false,
+  "knowledgeSettings": {
+    "allowPageSummary": true,
+    "apiKey": "",
+    "baseUrl": "",
+    "enabled": false,
+    "projectKey": ""
+  },
+  "llmConfig": {
+    "baseURL": "https://page-ag-testing-ohftxirgbn.cn-shanghai.fcapp.run",
+    "model": "qwen3.5-plus"
+  },
+  "pageAgentSidePanelHandoverActive": false,
+  "workflowBackend": {
+    "baseUrl": "http://127.0.0.1:38422",
+    "projectId": "real-user-1779970346191"
+  },
+  "workflowTargetTabId": 678730387
+}

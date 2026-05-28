@@ -1,6 +1,11 @@
 /**
  * background logics for TabsController
  */
+import {
+	WORKFLOW_TARGET_TAB_STORAGE_KEY,
+	findRecordableTab,
+	selectRecordableTab,
+} from '../webops/recorder/recordingTabs'
 import type { TabAction } from './TabsController'
 
 const PREFIX = '[TabsController.background]'
@@ -17,11 +22,25 @@ export function handleTabControlMessage(
 	switch (action as TabAction) {
 		case 'get_active_tab': {
 			debug('get_active_tab')
-			chrome.tabs
-				.query({ active: true })
-				.then((tabs) => {
-					debug('get_active_tab: success', tabs)
-					sendResponse({ success: true, tab: tabs[0] })
+			Promise.all([
+				chrome.tabs.query({ active: true, currentWindow: true }),
+				chrome.tabs.query({ active: true }),
+				chrome.tabs.query({}),
+				chrome.storage.local.get(WORKFLOW_TARGET_TAB_STORAGE_KEY),
+			])
+				.then(([currentWindowActiveTabs, activeTabs, allTabs, stored]) => {
+					const extensionOrigin = chrome.runtime.getURL('')
+					const tab =
+						findRecordableTab(currentWindowActiveTabs, extensionOrigin) ??
+						selectRecordableTab(
+							activeTabs,
+							allTabs,
+							extensionOrigin,
+							stored[WORKFLOW_TARGET_TAB_STORAGE_KEY] as number | undefined
+						) ??
+						activeTabs[0]
+					debug('get_active_tab: success', tab)
+					sendResponse({ success: true, tab })
 				})
 				.catch((error) => {
 					sendResponse({ error: error instanceof Error ? error.message : String(error) })

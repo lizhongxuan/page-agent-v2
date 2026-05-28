@@ -1,0 +1,17 @@
+{
+  "cases": [
+    {
+      "id": "github_issue_search",
+      "recordedTask": "Search GitHub issues in microsoft/playwright for timeout",
+      "replayTask": "Find timeout-related issues in microsoft/playwright",
+      "currentUrl": "https://github.com/microsoft/playwright",
+      "expectedWorkflowId": "wf_github_issue_search",
+      "expectedBindings": {
+        "repo": "microsoft/playwright",
+        "query": "timeout"
+      },
+      "expectedStartPageState": "github_repo_home",
+      "expectedFinalPageState": "github_issues_search_results"
+    }
+  ]
+}

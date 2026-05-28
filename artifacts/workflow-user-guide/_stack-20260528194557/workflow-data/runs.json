@@ -1,0 +1,372 @@
+{
+  "run_20260528114605705337000_339000": {
+    "id": "run_20260528114605705337000_339000",
+    "projectId": "real-user-1779968764902",
+    "workflowId": "wf_manual_127_0_0_1_manual_1779968765188",
+    "version": 1,
+    "task": "",
+    "url": "http://127.0.0.1:50823/workflow-github-issues.html",
+    "variables": {
+      "query": "[redacted]",
+      "repo": "[redacted]"
+    },
+    "result": "succeeded",
+    "logs": [
+      {
+        "timestamp": "2026-05-28T11:46:06.207Z",
+        "event": "chunk_started",
+        "chunkId": "chunk_1",
+        "pageState": "127_0_0_1_page"
+      },
+      {
+        "timestamp": "2026-05-28T11:46:06.233Z",
+        "event": "interrupt_handler_not_found",
+        "chunkId": "chunk_1",
+        "message": "No active interrupt handlers are available.",
+        "reason": "before_chunk"
+      },
+      {
+        "timestamp": "2026-05-28T11:46:06.238Z",
+        "event": "from_page_state_validated",
+        "chunkId": "chunk_1",
+        "pageState": "127_0_0_1_page"
+      },
+      {
+        "timestamp": "2026-05-28T11:46:06.242Z",
+        "event": "selector_attempted",
+        "stepId": "step_1",
+        "selectorAttempts": [
+          {
+            "timestamp": "2026-05-28T11:46:06.242Z",
+            "stepId": "step_1",
+            "strategy": "role",
+            "selector": "role link Issues",
+            "result": "success"
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-05-28T11:46:06.293Z",
+        "event": "selector_attempted",
+        "stepId": "step_2",
+        "selectorAttempts": [
+          {
+            "timestamp": "2026-05-28T11:46:06.293Z",
+            "stepId": "step_2",
+            "strategy": "role",
+            "selector": "role textbox Search all issues",
+            "result": "success"
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-05-28T11:46:06.308Z",
+        "event": "selector_attempted",
+        "stepId": "step_3",
+        "selectorAttempts": [
+          {
+            "timestamp": "2026-05-28T11:46:06.308Z",
+            "stepId": "step_3",
+            "strategy": "role",
+            "selector": "role button Search",
+            "result": "success"
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-05-28T11:46:06.328Z",
+        "event": "chunk_finished",
+        "chunkId": "chunk_1",
+        "pageState": "127_0_0_1_page"
+      }
+    ],
+    "createdAt": "2026-05-28T11:46:05.70534Z"
+  },
+  "run_20260528114608305245000_247000": {
+    "id": "run_20260528114608305245000_247000",
+    "projectId": "real-user-1779968767517",
+    "workflowId": "wf_manual_127_0_0_1_manual_1779968767787",
+    "version": 1,
+    "task": "",
+    "url": "http://127.0.0.1:50836/workflow-github-issues-with-dialog.html",
+    "variables": {
+      "query": "[redacted]",
+      "repo": "[redacted]"
+    },
+    "result": "succeeded",
+    "logs": [
+      {
+        "timestamp": "2026-05-28T11:46:08.552Z",
+        "event": "chunk_started",
+        "chunkId": "chunk_1",
+        "pageState": "127_0_0_1_page"
+      },
+      {
+        "timestamp": "2026-05-28T11:46:08.565Z",
+        "event": "interrupt_detected",
+        "chunkId": "chunk_1",
+        "message": "Common dialog action is visible: Got it"
+      },
+      {
+        "timestamp": "2026-05-28T11:46:08.588Z",
+        "event": "interrupt_handler_applied",
+        "chunkId": "chunk_1",
+        "message": "Clicked Got it",
+        "appliedInterruptHandlerId": "builtin_common_dialog_dismiss"
+      },
+      {
+        "timestamp": "2026-05-28T11:46:08.744Z",
+        "event": "from_page_state_validated",
+        "chunkId": "chunk_1",
+        "pageState": "127_0_0_1_page"
+      },
+      {
+        "timestamp": "2026-05-28T11:46:08.746Z",
+        "event": "selector_attempted",
+        "stepId": "step_1",
+        "selectorAttempts": [
+          {
+            "timestamp": "2026-05-28T11:46:08.746Z",
+            "stepId": "step_1",
+            "strategy": "role",
+            "selector": "role link Issues",
+            "result": "success"
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-05-28T11:46:08.762Z",
+        "event": "selector_attempted",
+        "stepId": "step_2",
+        "selectorAttempts": [
+          {
+            "timestamp": "2026-05-28T11:46:08.762Z",
+            "stepId": "step_2",
+            "strategy": "role",
+            "selector": "role textbox Search all issues",
+            "result": "success"
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-05-28T11:46:08.777Z",
+        "event": "selector_attempted",
+        "stepId": "step_3",
+        "selectorAttempts": [
+          {
+            "timestamp": "2026-05-28T11:46:08.777Z",
+            "stepId": "step_3",
+            "strategy": "role",
+            "selector": "role button Search",
+            "result": "success"
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-05-28T11:46:08.794Z",
+        "event": "chunk_finished",
+        "chunkId": "chunk_1",
+        "pageState": "127_0_0_1_page"
+      }
+    ],
+    "createdAt": "2026-05-28T11:46:08.305248Z"
+  },
+  "run_20260528114611405440000_442000": {
+    "id": "run_20260528114611405440000_442000",
+    "projectId": "real-user-1779968770084",
+    "workflowId": "wf_manual_127_0_0_1_manual_1779968770854",
+    "version": 1,
+    "task": "",
+    "url": "http://127.0.0.1:50850/workflow-ops-orders.html",
+    "variables": {
+      "query": "[redacted]"
+    },
+    "result": "succeeded",
+    "logs": [
+      {
+        "timestamp": "2026-05-28T11:46:11.67Z",
+        "event": "chunk_started",
+        "chunkId": "chunk_1",
+        "pageState": "127_0_0_1_page"
+      },
+      {
+        "timestamp": "2026-05-28T11:46:11.688Z",
+        "event": "interrupt_handler_not_found",
+        "chunkId": "chunk_1",
+        "message": "No active interrupt handlers are available.",
+        "reason": "before_chunk"
+      },
+      {
+        "timestamp": "2026-05-28T11:46:11.69Z",
+        "event": "from_page_state_validated",
+        "chunkId": "chunk_1",
+        "pageState": "127_0_0_1_page"
+      },
+      {
+        "timestamp": "2026-05-28T11:46:11.692Z",
+        "event": "selector_attempted",
+        "stepId": "step_1",
+        "selectorAttempts": [
+          {
+            "timestamp": "2026-05-28T11:46:11.692Z",
+            "stepId": "step_1",
+            "strategy": "role",
+            "selector": "role link Orders",
+            "result": "success"
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-05-28T11:46:11.732Z",
+        "event": "selector_attempted",
+        "stepId": "step_2",
+        "selectorAttempts": [
+          {
+            "timestamp": "2026-05-28T11:46:11.732Z",
+            "stepId": "step_2",
+            "strategy": "role",
+            "selector": "role combobox Status",
+            "result": "success"
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-05-28T11:46:11.735Z",
+        "event": "selector_attempted",
+        "stepId": "step_3",
+        "selectorAttempts": [
+          {
+            "timestamp": "2026-05-28T11:46:11.735Z",
+            "stepId": "step_3",
+            "strategy": "role",
+            "selector": "role button Apply filters",
+            "result": "success"
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-05-28T11:46:11.751Z",
+        "event": "selector_attempted",
+        "stepId": "step_4",
+        "selectorAttempts": [
+          {
+            "timestamp": "2026-05-28T11:46:11.751Z",
+            "stepId": "step_4",
+            "strategy": "role",
+            "selector": "role link Open first order",
+            "result": "success"
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-05-28T11:46:11.766Z",
+        "event": "chunk_finished",
+        "chunkId": "chunk_1",
+        "pageState": "127_0_0_1_page"
+      }
+    ],
+    "createdAt": "2026-05-28T11:46:11.405443Z"
+  },
+  "run_20260528114614038690000_691000": {
+    "id": "run_20260528114614038690000_691000",
+    "projectId": "real-user-1779968773178",
+    "workflowId": "wf_manual_127_0_0_1_manual_1779968773454",
+    "version": 1,
+    "task": "",
+    "url": "http://127.0.0.1:50864/workflow-ops-orders-with-dialog.html",
+    "variables": {
+      "query": "[redacted]"
+    },
+    "result": "succeeded",
+    "logs": [
+      {
+        "timestamp": "2026-05-28T11:46:14.309Z",
+        "event": "chunk_started",
+        "chunkId": "chunk_1",
+        "pageState": "127_0_0_1_page"
+      },
+      {
+        "timestamp": "2026-05-28T11:46:14.321Z",
+        "event": "interrupt_detected",
+        "chunkId": "chunk_1",
+        "message": "Common dialog action is visible: Got it"
+      },
+      {
+        "timestamp": "2026-05-28T11:46:14.346Z",
+        "event": "interrupt_handler_applied",
+        "chunkId": "chunk_1",
+        "message": "Clicked Got it",
+        "appliedInterruptHandlerId": "builtin_common_dialog_dismiss"
+      },
+      {
+        "timestamp": "2026-05-28T11:46:14.502Z",
+        "event": "from_page_state_validated",
+        "chunkId": "chunk_1",
+        "pageState": "127_0_0_1_page"
+      },
+      {
+        "timestamp": "2026-05-28T11:46:14.504Z",
+        "event": "selector_attempted",
+        "stepId": "step_1",
+        "selectorAttempts": [
+          {
+            "timestamp": "2026-05-28T11:46:14.504Z",
+            "stepId": "step_1",
+            "strategy": "role",
+            "selector": "role link Orders",
+            "result": "success"
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-05-28T11:46:14.519Z",
+        "event": "selector_attempted",
+        "stepId": "step_2",
+        "selectorAttempts": [
+          {
+            "timestamp": "2026-05-28T11:46:14.519Z",
+            "stepId": "step_2",
+            "strategy": "role",
+            "selector": "role combobox Status",
+            "result": "success"
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-05-28T11:46:14.527Z",
+        "event": "selector_attempted",
+        "stepId": "step_3",
+        "selectorAttempts": [
+          {
+            "timestamp": "2026-05-28T11:46:14.527Z",
+            "stepId": "step_3",
+            "strategy": "role",
+            "selector": "role button Apply filters",
+            "result": "success"
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-05-28T11:46:14.543Z",
+        "event": "selector_attempted",
+        "stepId": "step_4",
+        "selectorAttempts": [
+          {
+            "timestamp": "2026-05-28T11:46:14.543Z",
+            "stepId": "step_4",
+            "strategy": "role",
+            "selector": "role link Open first order",
+            "result": "success"
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-05-28T11:46:14.558Z",
+        "event": "chunk_finished",
+        "chunkId": "chunk_1",
+        "pageState": "127_0_0_1_page"
+      }
+    ],
+    "createdAt": "2026-05-28T11:46:14.038692Z"
+  }
+}

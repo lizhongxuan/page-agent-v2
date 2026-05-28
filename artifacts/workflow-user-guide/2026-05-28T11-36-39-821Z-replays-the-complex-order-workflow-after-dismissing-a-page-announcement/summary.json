@@ -1,0 +1,12 @@
+{
+  "backendUrl": "http://127.0.0.1:38422",
+  "dialogFixtureUrl": "http://127.0.0.1:50381/workflow-github-issues-with-dialog.html",
+  "extensionId": "akldabonmimlicnjlflnapfeklbfemhj",
+  "fixtureUrl": "http://127.0.0.1:50381/workflow-github-issues.html",
+  "ordersDialogFixtureUrl": "http://127.0.0.1:50381/workflow-ops-orders-with-dialog.html",
+  "ordersFixtureUrl": "http://127.0.0.1:50381/workflow-ops-orders.html",
+  "projectId": "real-user-1779968200554",
+  "assertion": "complex order workflow handles an announcement dialog and still succeeds",
+  "workflowId": "wf_manual_127_0_0_1_manual_1779968200830",
+  "runId": "run_20260528113641446457000_458000"
+}

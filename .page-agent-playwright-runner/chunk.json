@@ -1,0 +1,106 @@
+{
+  "url": "file:///Users/lizhongxuan/Desktop/aiops/page-agent-v2/tests/fixtures/workflow-github-issues.html",
+  "headless": true,
+  "chunk": {
+    "id": "",
+    "name": "",
+    "riskLevel": "",
+    "steps": null,
+    "lastFailureAt": "0001-01-01T00:00:00Z"
+  },
+  "chunks": [
+    {
+      "id": "search_issues",
+      "name": "Search Issues",
+      "fromPageState": "github_repo_home",
+      "toPageState": "github_issues_search_results",
+      "preconditionText": "Code",
+      "postconditionText": "Showing 2 issue results",
+      "stepSummary": "Open Issues and search by query",
+      "riskLevel": "read_or_search",
+      "steps": [
+        {
+          "id": "click_issues",
+          "type": "click",
+          "target": {
+            "primary": {
+              "strategy": "role",
+              "role": "link",
+              "name": "Issues"
+            },
+            "fallbacks": [
+              {
+                "strategy": "text",
+                "value": "Issues"
+              }
+            ]
+          },
+          "riskLevel": "read_or_search"
+        },
+        {
+          "id": "fill_query",
+          "type": "fill",
+          "target": {
+            "primary": {
+              "strategy": "placeholder",
+              "value": "Old issue search"
+            }
+          },
+          "value": "{{query}}",
+          "riskLevel": "read_or_search"
+        },
+        {
+          "id": "submit_search",
+          "type": "click",
+          "target": {
+            "primary": {
+              "strategy": "role",
+              "role": "button",
+              "name": "Search"
+            }
+          },
+          "riskLevel": "read_or_search"
+        }
+      ],
+      "variableNames": [
+        "repo",
+        "query"
+      ],
+      "lastFailureAt": "0001-01-01T00:00:00Z"
+    }
+  ],
+  "bindings": {
+    "query": "patched user guide",
+    "repo": "example/project-b"
+  },
+  "repairPatches": [
+    {
+      "id": "patch_20cf1b4cb41ed8bc",
+      "projectId": "user-guide-repair-1779974798287",
+      "status": "active",
+      "workflowId": "wf_user_guide_repair_1779974798287",
+      "workflowVersion": 1,
+      "chunkId": "search_issues",
+      "stepId": "fill_query",
+      "site": "github.com",
+      "failureType": "locator_not_found",
+      "failureSignature": "Old issue search placeholder is no longer visible",
+      "oldTarget": "placeholder Old issue search",
+      "newTargetSummary": "Current issue search input",
+      "newTarget": {
+        "primary": {
+          "strategy": "css",
+          "value": "input[name=\"q\"]"
+        }
+      },
+      "appliesToPageStates": [
+        "github_repo_home"
+      ],
+      "riskLevel": "read_only",
+      "createdAt": "2026-05-28T13:26:38.308247Z",
+      "reviewedAt": "2026-05-28T13:26:38.310822Z",
+      "updatedAt": "2026-05-28T13:26:38.310822Z"
+    }
+  ],
+  "resultPath": "/Users/lizhongxuan/Desktop/aiops/page-agent-v2/.page-agent-playwright-runner/result-wf_user_guide_repair_1779974798287.json"
+}

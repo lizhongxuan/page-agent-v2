@@ -1,0 +1,139 @@
+{
+  "candidates": [
+    {
+      "id": "cand_30b5727e3c48bc45",
+      "projectId": "real-user-1779971473980",
+      "source": "user_demo",
+      "task": "在 github.com/alibaba/page-agent 的 Issues 里搜索 startsWith 报错",
+      "startUrl": "http://127.0.0.1:52875/workflow-github-issues.html",
+      "recipeDraft": {
+        "id": "wf_manual_127_0_0_1_manual_1779971474225",
+        "version": 1,
+        "projectId": "real-user-1779971473980",
+        "status": "active",
+        "searchable": true,
+        "site": "127.0.0.1",
+        "name": "在 github.com/alibaba/page-agent 的 Issues 里搜索 startsWith 报错",
+        "intent": "在 github.com/alibaba/page-agent 的 Issues 里搜索 startsWith 报错",
+        "description": "Replay a user-recorded browser workflow. Recorded GitHub repository: alibaba/page-agent. Search/input values are parameterized as {{query}}. Original task: 在 github.com/alibaba/page-agent 的 Issues 里搜索 startsWith 报错.",
+        "tags": [
+          "127.0.0.1",
+          "repo",
+          "search"
+        ],
+        "riskLevel": "read_or_search",
+        "requiresConfirmation": false,
+        "variables": [
+          {
+            "name": "repo",
+            "type": "string",
+            "required": true,
+            "source": "task_or_url",
+            "examples": [
+              "alibaba/page-agent"
+            ]
+          },
+          {
+            "name": "query",
+            "type": "string",
+            "required": true,
+            "source": "task",
+            "examples": [
+              "startsWith 报错"
+            ]
+          }
+        ],
+        "chunks": [
+          {
+            "id": "chunk_1",
+            "name": "Recorded browser workflow",
+            "fromPageState": "127_0_0_1_page",
+            "toPageState": "127_0_0_1_page",
+            "stepSummary": "click Issues -> fill Search all issues -> click Search",
+            "riskLevel": "read_or_search",
+            "steps": [
+              {
+                "id": "step_1",
+                "type": "click",
+                "target": {
+                  "primary": {
+                    "strategy": "role",
+                    "role": "link",
+                    "name": "Issues"
+                  },
+                  "fallbacks": [
+                    {
+                      "strategy": "text",
+                      "value": "Issues"
+                    },
+                    {
+                      "strategy": "css",
+                      "value": "a[href=\"\\#issues\"]"
+                    }
+                  ]
+                },
+                "riskLevel": "read_or_search"
+              },
+              {
+                "id": "step_2",
+                "type": "fill",
+                "target": {
+                  "primary": {
+                    "strategy": "role",
+                    "role": "textbox",
+                    "name": "Search all issues"
+                  },
+                  "fallbacks": [
+                    {
+                      "strategy": "css",
+                      "value": "input[name=\"q\"]"
+                    }
+                  ]
+                },
+                "value": "{{query}}",
+                "riskLevel": "read_or_search"
+              },
+              {
+                "id": "step_3",
+                "type": "click",
+                "target": {
+                  "primary": {
+                    "strategy": "role",
+                    "role": "button",
+                    "name": "Search"
+                  },
+                  "fallbacks": [
+                    {
+                      "strategy": "text",
+                      "value": "Search"
+                    }
+                  ]
+                },
+                "riskLevel": "read_or_search"
+              }
+            ],
+            "variableNames": [
+              "repo",
+              "query"
+            ],
+            "successRate": 1,
+            "selectorHealth": 1,
+            "lastFailureAt": "0001-01-01T00:00:00Z"
+          }
+        ],
+        "startPageStates": [
+          "127_0_0_1_page"
+        ],
+        "endPageStates": [
+          "127_0_0_1_page"
+        ],
+        "createdAt": "2026-05-28T12:31:14.494Z",
+        "updatedAt": "2026-05-28T12:31:14.726265Z"
+      },
+      "status": "active",
+      "searchable": true,
+      "createdAt": "2026-05-28T12:31:14.495676Z",
+      "reviewedAt": "2026-05-28T12:31:14.726296Z"
+    }
+  ]
+}

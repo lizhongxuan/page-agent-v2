@@ -1,0 +1,9 @@
+{
+  "id": "project-b-local-replay",
+  "logs": [
+    {
+      "event": "current_tab_replay_completed"
+    }
+  ],
+  "result": "succeeded"
+}

@@ -1,0 +1,68 @@
+{
+  "wf_manual_127_0_0_1_manual_1779955232559:v1:step_1:role:role link Issues": {
+    "workflowId": "wf_manual_127_0_0_1_manual_1779955232559",
+    "version": 1,
+    "stepId": "step_1",
+    "strategy": "role",
+    "selector": "role link Issues",
+    "successCount": 1,
+    "failCount": 0,
+    "lastSuccessAt": "2026-05-28T08:00:33.724416Z",
+    "lastFailAt": "0001-01-01T00:00:00Z"
+  },
+  "wf_manual_127_0_0_1_manual_1779955232559:v1:step_2:role:role textbox Search all issues": {
+    "workflowId": "wf_manual_127_0_0_1_manual_1779955232559",
+    "version": 1,
+    "stepId": "step_2",
+    "strategy": "role",
+    "selector": "role textbox Search all issues",
+    "successCount": 1,
+    "failCount": 0,
+    "lastSuccessAt": "2026-05-28T08:00:33.724416Z",
+    "lastFailAt": "0001-01-01T00:00:00Z"
+  },
+  "wf_manual_127_0_0_1_manual_1779955232559:v1:step_3:role:role button Search": {
+    "workflowId": "wf_manual_127_0_0_1_manual_1779955232559",
+    "version": 1,
+    "stepId": "step_3",
+    "strategy": "role",
+    "selector": "role button Search",
+    "successCount": 1,
+    "failCount": 0,
+    "lastSuccessAt": "2026-05-28T08:00:33.724416Z",
+    "lastFailAt": "0001-01-01T00:00:00Z"
+  },
+  "wf_manual_127_0_0_1_manual_1779955235192:v1:step_1:role:role link Issues": {
+    "workflowId": "wf_manual_127_0_0_1_manual_1779955235192",
+    "version": 1,
+    "stepId": "step_1",
+    "strategy": "role",
+    "selector": "role link Issues",
+    "successCount": 1,
+    "failCount": 0,
+    "lastSuccessAt": "2026-05-28T08:00:36.23308Z",
+    "lastFailAt": "0001-01-01T00:00:00Z"
+  },
+  "wf_manual_127_0_0_1_manual_1779955235192:v1:step_2:role:role textbox Search all issues": {
+    "workflowId": "wf_manual_127_0_0_1_manual_1779955235192",
+    "version": 1,
+    "stepId": "step_2",
+    "strategy": "role",
+    "selector": "role textbox Search all issues",
+    "successCount": 1,
+    "failCount": 0,
+    "lastSuccessAt": "2026-05-28T08:00:36.23308Z",
+    "lastFailAt": "0001-01-01T00:00:00Z"
+  },
+  "wf_manual_127_0_0_1_manual_1779955235192:v1:step_3:role:role button Search": {
+    "workflowId": "wf_manual_127_0_0_1_manual_1779955235192",
+    "version": 1,
+    "stepId": "step_3",
+    "strategy": "role",
+    "selector": "role button Search",
+    "successCount": 1,
+    "failCount": 0,
+    "lastSuccessAt": "2026-05-28T08:00:36.23308Z",
+    "lastFailAt": "0001-01-01T00:00:00Z"
+  }
+}

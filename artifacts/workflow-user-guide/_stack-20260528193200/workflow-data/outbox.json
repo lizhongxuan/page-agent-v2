@@ -1,0 +1,15 @@
+{
+  "evt_22de0fd38601eb03": {
+    "id": "evt_22de0fd38601eb03",
+    "type": "workflow_approved",
+    "idempotencyKey": "workflow_approved:wf_manual_127_0_0_1_manual_1779967928357:v1",
+    "payload": {
+      "projectId": "real-user-1779967927954",
+      "version": 1,
+      "workflowId": "wf_manual_127_0_0_1_manual_1779967928357"
+    },
+    "status": "pending_review",
+    "createdAt": "2026-05-28T11:32:16.10311Z",
+    "processedAt": "0001-01-01T00:00:00Z"
+  }
+}

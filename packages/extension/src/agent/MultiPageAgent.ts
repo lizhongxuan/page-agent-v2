@@ -13,6 +13,8 @@ import {
 	recordWebOpsAction,
 	startWebOpsSession,
 } from '@/webops/recorder/runtimeSession'
+import type { BrowserWorkflowReplayResult } from '@/webops/workflow/browserWorkflowReplay'
+import type { WorkflowRecipe } from '@/webops/workflow/types'
 
 import { RemotePageController } from './RemotePageController'
 import { TabsController } from './TabsController'
@@ -48,9 +50,43 @@ interface MultiPageAgentConfig extends AgentConfig {
  */
 export class MultiPageAgent extends PageAgentCore {
 	private getWebOpsSessionRef: () => RecordedSession | undefined = () => undefined
+	private tabsController: TabsController
+	private remotePageController: RemotePageController
 
 	getWebOpsSession() {
 		return this.getWebOpsSessionRef()
+	}
+
+	async getCurrentPageObservation(task = 'PageAgent page observation') {
+		if (!this.tabsController.currentTabId) {
+			await this.tabsController.init(task, {
+				includeInitialTab: true,
+				experimentalIncludeAllTabs: false,
+			})
+		}
+		const tabInfo = this.tabsController.currentTabId
+			? await this.tabsController.getTabInfo(this.tabsController.currentTabId)
+			: { url: '', title: '' }
+		const elements = await this.remotePageController.getWorkflowElements()
+		return {
+			url: tabInfo.url,
+			title: tabInfo.title,
+			visibleText: elements.visibleText,
+			controls: elements.controls,
+		}
+	}
+
+	async runWorkflowRecipe(
+		workflow: WorkflowRecipe,
+		bindings: Record<string, string>
+	): Promise<BrowserWorkflowReplayResult> {
+		if (!this.tabsController.currentTabId) {
+			await this.tabsController.init(workflow.intent || workflow.name || workflow.id, {
+				includeInitialTab: true,
+				experimentalIncludeAllTabs: false,
+			})
+		}
+		return this.remotePageController.runWorkflowRecipe(workflow, bindings)
 	}
 
 	constructor(config: MultiPageAgentConfig) {
@@ -184,6 +220,8 @@ export class MultiPageAgent extends PageAgentCore {
 		})
 
 		const pageInteractionAskUser = createPageInteractionAskUser(tabsController, pageController)
+		this.tabsController = tabsController
+		this.remotePageController = pageController
 		this.onAskUser = async (question: string) => {
 			if (shouldUseSensitiveHandover(this.task, question)) {
 				const tabInfo = await getCurrentTabInfo(tabsController)

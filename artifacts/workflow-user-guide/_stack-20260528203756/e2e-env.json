@@ -1,0 +1,7 @@
+{
+  "workflowBackendUrl": "http://127.0.0.1:38422",
+  "qdrantUrl": "http://127.0.0.1:6339",
+  "qdrantCollectionPrefix": "pa_e2e_20260528203756",
+  "workflowDataDir": "/Users/lizhongxuan/Desktop/aiops/page-agent-v2/artifacts/workflow-user-guide/_stack-20260528203756/workflow-data",
+  "artifactRoot": "/Users/lizhongxuan/Desktop/aiops/page-agent-v2/artifacts/workflow-user-guide"
+}

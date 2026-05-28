@@ -1,0 +1,10 @@
+{
+  "backendUrl": "http://127.0.0.1:38422",
+  "dialogFixtureUrl": "http://127.0.0.1:53731/workflow-github-issues-with-dialog.html",
+  "extensionId": "akldabonmimlicnjlflnapfeklbfemhj",
+  "fixtureUrl": "http://127.0.0.1:53731/workflow-github-issues.html",
+  "ordersDialogFixtureUrl": "http://127.0.0.1:53731/workflow-ops-orders-with-dialog.html",
+  "ordersFixtureUrl": "http://127.0.0.1:53731/workflow-ops-orders.html",
+  "projectId": "real-user-1779972419925",
+  "assertion": "empty start-stop recording is rejected locally and does not create a backend candidate"
+}

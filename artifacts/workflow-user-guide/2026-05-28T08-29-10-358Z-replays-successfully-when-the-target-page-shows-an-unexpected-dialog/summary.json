@@ -1,0 +1,12 @@
+{
+  "backendUrl": "http://127.0.0.1:38422",
+  "dialogFixtureUrl": "http://127.0.0.1:63126/workflow-github-issues-with-dialog.html",
+  "extensionId": "akldabonmimlicnjlflnapfeklbfemhj",
+  "fixtureUrl": "http://127.0.0.1:63126/workflow-github-issues.html",
+  "ordersDialogFixtureUrl": "http://127.0.0.1:63126/workflow-ops-orders-with-dialog.html",
+  "ordersFixtureUrl": "http://127.0.0.1:63126/workflow-ops-orders.html",
+  "projectId": "real-user-1779956950986",
+  "assertion": "approved workflow replay handles an unexpected dialog and still succeeds",
+  "workflowId": "wf_manual_127_0_0_1_manual_1779956951275",
+  "runId": "run_20260528082911858716000_719000"
+}

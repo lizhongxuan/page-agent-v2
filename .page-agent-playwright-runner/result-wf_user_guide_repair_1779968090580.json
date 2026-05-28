@@ -1,0 +1,141 @@
+{
+  "logs": [
+    {
+      "timestamp": "2026-05-28T11:34:50.878Z",
+      "event": "chunk_started",
+      "chunkId": "search_issues",
+      "pageState": "github_repo_home",
+      "appliedInterruptHandlerId": ""
+    },
+    {
+      "timestamp": "2026-05-28T11:34:50.895Z",
+      "event": "interrupt_handler_not_found",
+      "chunkId": "search_issues",
+      "reason": "before_chunk",
+      "message": "No active interrupt handlers are available."
+    },
+    {
+      "timestamp": "2026-05-28T11:34:50.900Z",
+      "event": "from_page_state_validated",
+      "chunkId": "search_issues",
+      "pageState": "github_repo_home"
+    },
+    {
+      "timestamp": "2026-05-28T11:34:50.902Z",
+      "event": "selector_attempted",
+      "stepId": "click_issues",
+      "selectorAttempts": [
+        {
+          "timestamp": "2026-05-28T11:34:50.902Z",
+          "stepId": "click_issues",
+          "strategy": "role",
+          "selector": "role link Issues",
+          "result": "success",
+          "failureReason": ""
+        }
+      ]
+    },
+    {
+      "timestamp": "2026-05-28T11:34:55.932Z",
+      "event": "interrupt_handler_not_found",
+      "chunkId": "search_issues",
+      "reason": "locator_failed",
+      "message": "No active interrupt handlers are available."
+    },
+    {
+      "timestamp": "2026-05-28T11:35:00.933Z",
+      "event": "selector_attempted",
+      "stepId": "fill_query",
+      "selectorAttempts": [
+        {
+          "timestamp": "2026-05-28T11:35:00.933Z",
+          "stepId": "fill_query",
+          "strategy": "placeholder",
+          "selector": "placeholder Old issue search",
+          "result": "failed",
+          "failureReason": "locator.waitFor: Timeout 5000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByPlaceholder('Old issue search').first() to be visible\u001b[22m\n"
+        }
+      ]
+    },
+    {
+      "timestamp": "2026-05-28T11:35:00.934Z",
+      "event": "repair_patch_applied",
+      "chunkId": "search_issues",
+      "stepId": "fill_query",
+      "appliedRepairPatchId": "patch_6f1bb3435d24cee5",
+      "message": "Current issue search input"
+    },
+    {
+      "timestamp": "2026-05-28T11:35:00.936Z",
+      "event": "selector_attempted",
+      "stepId": "fill_query",
+      "selectorAttempts": [
+        {
+          "timestamp": "2026-05-28T11:35:00.936Z",
+          "stepId": "fill_query",
+          "strategy": "css",
+          "selector": "css input[name=\"q\"]",
+          "result": "success",
+          "failureReason": ""
+        }
+      ]
+    },
+    {
+      "timestamp": "2026-05-28T11:35:00.942Z",
+      "event": "selector_attempted",
+      "stepId": "submit_search",
+      "selectorAttempts": [
+        {
+          "timestamp": "2026-05-28T11:35:00.942Z",
+          "stepId": "submit_search",
+          "strategy": "role",
+          "selector": "role button Search",
+          "result": "success",
+          "failureReason": ""
+        }
+      ]
+    },
+    {
+      "timestamp": "2026-05-28T11:35:00.965Z",
+      "event": "chunk_finished",
+      "chunkId": "search_issues",
+      "pageState": "github_issues_search_results",
+      "appliedInterruptHandlerId": ""
+    }
+  ],
+  "selectorStats": [
+    {
+      "stepId": "click_issues",
+      "strategy": "role",
+      "selector": "role link Issues",
+      "successCount": 1,
+      "failCount": 0,
+      "lastFailureReason": ""
+    },
+    {
+      "stepId": "fill_query",
+      "strategy": "placeholder",
+      "selector": "placeholder Old issue search",
+      "successCount": 0,
+      "failCount": 1,
+      "lastFailureReason": "locator.waitFor: Timeout 5000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByPlaceholder('Old issue search').first() to be visible\u001b[22m\n"
+    },
+    {
+      "stepId": "fill_query",
+      "strategy": "css",
+      "selector": "css input[name=\"q\"]",
+      "successCount": 1,
+      "failCount": 0,
+      "lastFailureReason": ""
+    },
+    {
+      "stepId": "submit_search",
+      "strategy": "role",
+      "selector": "role button Search",
+      "successCount": 1,
+      "failCount": 0,
+      "lastFailureReason": ""
+    }
+  ],
+  "artifactRefs": []
+}

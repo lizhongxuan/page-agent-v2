@@ -1,0 +1,101 @@
+{
+  "wf_manual_127_0_0_1_manual_1779954567901:v1:step_1:role:role link Issues": {
+    "workflowId": "wf_manual_127_0_0_1_manual_1779954567901",
+    "version": 1,
+    "stepId": "step_1",
+    "strategy": "role",
+    "selector": "role link Issues",
+    "successCount": 1,
+    "failCount": 0,
+    "lastSuccessAt": "2026-05-28T07:49:28.804741Z",
+    "lastFailAt": "0001-01-01T00:00:00Z"
+  },
+  "wf_manual_127_0_0_1_manual_1779954567901:v1:step_2:role:role textbox Search all issues": {
+    "workflowId": "wf_manual_127_0_0_1_manual_1779954567901",
+    "version": 1,
+    "stepId": "step_2",
+    "strategy": "role",
+    "selector": "role textbox Search all issues",
+    "successCount": 1,
+    "failCount": 0,
+    "lastSuccessAt": "2026-05-28T07:49:28.804741Z",
+    "lastFailAt": "0001-01-01T00:00:00Z"
+  },
+  "wf_manual_127_0_0_1_manual_1779954567901:v1:step_3:role:role button Search": {
+    "workflowId": "wf_manual_127_0_0_1_manual_1779954567901",
+    "version": 1,
+    "stepId": "step_3",
+    "strategy": "role",
+    "selector": "role button Search",
+    "successCount": 1,
+    "failCount": 0,
+    "lastSuccessAt": "2026-05-28T07:49:28.804741Z",
+    "lastFailAt": "0001-01-01T00:00:00Z"
+  },
+  "wf_user_guide_1779954566230:v1:click_issues:role:role link Issues": {
+    "workflowId": "wf_user_guide_1779954566230",
+    "version": 1,
+    "stepId": "click_issues",
+    "strategy": "role",
+    "selector": "role link Issues",
+    "successCount": 1,
+    "failCount": 0,
+    "lastSuccessAt": "2026-05-28T07:49:26.879273Z",
+    "lastFailAt": "0001-01-01T00:00:00Z"
+  },
+  "wf_user_guide_1779954566230:v1:fill_query:placeholder:placeholder Search all issues": {
+    "workflowId": "wf_user_guide_1779954566230",
+    "version": 1,
+    "stepId": "fill_query",
+    "strategy": "placeholder",
+    "selector": "placeholder Search all issues",
+    "successCount": 1,
+    "failCount": 0,
+    "lastSuccessAt": "2026-05-28T07:49:26.879273Z",
+    "lastFailAt": "0001-01-01T00:00:00Z"
+  },
+  "wf_user_guide_1779954566230:v1:submit_search:role:role button Search": {
+    "workflowId": "wf_user_guide_1779954566230",
+    "version": 1,
+    "stepId": "submit_search",
+    "strategy": "role",
+    "selector": "role button Search",
+    "successCount": 1,
+    "failCount": 0,
+    "lastSuccessAt": "2026-05-28T07:49:26.879273Z",
+    "lastFailAt": "0001-01-01T00:00:00Z"
+  },
+  "wf_user_guide_dialog_1779954566906:v1:click_issues:role:role link Issues": {
+    "workflowId": "wf_user_guide_dialog_1779954566906",
+    "version": 1,
+    "stepId": "click_issues",
+    "strategy": "role",
+    "selector": "role link Issues",
+    "successCount": 1,
+    "failCount": 0,
+    "lastSuccessAt": "2026-05-28T07:49:27.676656Z",
+    "lastFailAt": "0001-01-01T00:00:00Z"
+  },
+  "wf_user_guide_dialog_1779954566906:v1:fill_query:placeholder:placeholder Search all issues": {
+    "workflowId": "wf_user_guide_dialog_1779954566906",
+    "version": 1,
+    "stepId": "fill_query",
+    "strategy": "placeholder",
+    "selector": "placeholder Search all issues",
+    "successCount": 1,
+    "failCount": 0,
+    "lastSuccessAt": "2026-05-28T07:49:27.676656Z",
+    "lastFailAt": "0001-01-01T00:00:00Z"
+  },
+  "wf_user_guide_dialog_1779954566906:v1:submit_search:role:role button Search": {
+    "workflowId": "wf_user_guide_dialog_1779954566906",
+    "version": 1,
+    "stepId": "submit_search",
+    "strategy": "role",
+    "selector": "role button Search",
+    "successCount": 1,
+    "failCount": 0,
+    "lastSuccessAt": "2026-05-28T07:49:27.676656Z",
+    "lastFailAt": "0001-01-01T00:00:00Z"
+  }
+}

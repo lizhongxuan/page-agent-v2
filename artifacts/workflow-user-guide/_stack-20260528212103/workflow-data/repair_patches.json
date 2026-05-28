@@ -1,0 +1,29 @@
+{
+  "patch_ca87c8ec3d8bcc9f": {
+    "id": "patch_ca87c8ec3d8bcc9f",
+    "projectId": "user-guide-repair-1779974471740",
+    "status": "active",
+    "workflowId": "wf_user_guide_repair_1779974471740",
+    "workflowVersion": 1,
+    "chunkId": "search_issues",
+    "stepId": "fill_query",
+    "site": "github.com",
+    "failureType": "locator_not_found",
+    "failureSignature": "Old issue search placeholder is no longer visible",
+    "oldTarget": "placeholder Old issue search",
+    "newTargetSummary": "Current issue search input",
+    "newTarget": {
+      "primary": {
+        "strategy": "css",
+        "value": "input[name=\"q\"]"
+      }
+    },
+    "appliesToPageStates": [
+      "github_repo_home"
+    ],
+    "riskLevel": "read_only",
+    "createdAt": "2026-05-28T13:21:11.762451Z",
+    "reviewedAt": "2026-05-28T13:21:11.764597Z",
+    "updatedAt": "2026-05-28T13:21:11.764597Z"
+  }
+}

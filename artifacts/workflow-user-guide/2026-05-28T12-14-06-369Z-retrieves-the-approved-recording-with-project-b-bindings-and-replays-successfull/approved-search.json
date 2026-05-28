@@ -1,0 +1,37 @@
+{
+  "candidateSlots": {
+    "query": "timeout 报错",
+    "repo": "microsoft/playwright"
+  },
+  "candidates": [
+    {
+      "workflowId": "wf_manual_127_0_0_1_manual_1779970447277",
+      "version": 1,
+      "name": "在 github.com/alibaba/page-agent 的 Issues 里搜索 startsWith 报错",
+      "intent": "在 github.com/alibaba/page-agent 的 Issues 里搜索 startsWith 报错",
+      "finalScore": 0.383935472,
+      "riskLevel": "read_or_search",
+      "variables": [
+        "query",
+        "repo"
+      ],
+      "reasons": [
+        "site matched 127.0.0.1",
+        "workflow semantic score matched",
+        "required variables are bindable"
+      ],
+      "scoreBreakdown": {
+        "workflowDenseScore": 0.5163978,
+        "workflowSparseScore": 0,
+        "bestChunkScore": 0,
+        "pageStateScore": 0,
+        "variableBindability": 1,
+        "historicalSuccessRate": 1,
+        "selectorHealth": 1,
+        "riskPenalty": 0,
+        "recentFailurePenalty": 0
+      }
+    }
+  ],
+  "currentPageState": ""
+}

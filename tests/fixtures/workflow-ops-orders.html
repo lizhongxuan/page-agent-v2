@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Operations order console</title>
+		<style>
+			:root {
+				color-scheme: light;
+				font-family:
+					-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+				background: #f5f7fb;
+				color: #172033;
+			}
+
+			* {
+				box-sizing: border-box;
+			}
+
+			body {
+				margin: 0;
+			}
+
+			a,
+			button,
+			input,
+			select {
+				font: inherit;
+			}
+
+			header {
+				background: #183153;
+				color: #ffffff;
+				padding: 16px 28px;
+			}
+
+			.app-title {
+				margin: 0;
+				font-size: 22px;
+				font-weight: 700;
+			}
+
+			.shell {
+				display: grid;
+				grid-template-columns: 220px minmax(0, 1fr);
+				min-height: calc(100vh - 61px);
+			}
+
+			nav {
+				background: #ffffff;
+				border-right: 1px solid #d5dbe7;
+				padding: 18px;
+			}
+
+			nav a {
+				display: block;
+				color: #172033;
+				border-radius: 6px;
+				padding: 10px 12px;
+				text-decoration: none;
+				font-weight: 650;
+			}
+
+			nav a[aria-current="page"] {
+				background: #e8f0fb;
+				color: #114b88;
+			}
+
+			main {
+				padding: 26px 30px 48px;
+			}
+
+			.panel {
+				max-width: 980px;
+			}
+
+			.summary,
+			.filters,
+			.results,
+			.detail {
+				background: #ffffff;
+				border: 1px solid #d5dbe7;
+				border-radius: 6px;
+			}
+
+			.summary,
+			.detail {
+				padding: 18px;
+			}
+
+			h2 {
+				margin: 0 0 8px;
+				font-size: 22px;
+			}
+
+			.muted {
+				color: #5c6678;
+			}
+
+			.hidden {
+				display: none;
+			}
+
+			.filters {
+				display: grid;
+				grid-template-columns: minmax(260px, 1fr) 180px auto;
+				gap: 12px;
+				align-items: end;
+				margin: 16px 0;
+				padding: 14px;
+			}
+
+			label {
+				display: grid;
+				gap: 6px;
+				font-weight: 650;
+			}
+
+			input,
+			select {
+				width: 100%;
+				border: 1px solid #a6afbd;
+				border-radius: 6px;
+				background: #ffffff;
+				padding: 9px 10px;
+			}
+
+			button,
+			.action-link {
+				border: 1px solid #1f6feb;
+				border-radius: 6px;
+				background: #1f6feb;
+				color: #ffffff;
+				font-weight: 700;
+				padding: 9px 14px;
+				text-decoration: none;
+				cursor: pointer;
+			}
+
+			.results {
+				list-style: none;
+				margin: 0;
+				padding: 0;
+			}
+
+			.results li {
+				display: grid;
+				grid-template-columns: minmax(0, 1fr) auto;
+				gap: 16px;
+				align-items: center;
+				border-top: 1px solid #dce2ec;
+				padding: 14px 16px;
+			}
+
+			.results li:first-child {
+				border-top: 0;
+			}
+
+			.order-title {
+				display: block;
+				font-weight: 700;
+				margin-bottom: 4px;
+			}
+
+			.state {
+				margin: 0 0 12px;
+			}
+		</style>
+	</head>
+	<body>
+		<header>
+			<h1 class="app-title">Operations order console</h1>
+		</header>
+		<div class="shell">
+			<nav aria-label="Operations">
+				<a href="#overview" data-section="overview" aria-current="page">Overview</a>
+				<a href="#orders" data-section="orders">Orders</a>
+				<a href="#incidents" data-section="incidents">Incidents</a>
+			</nav>
+			<main>
+				<section id="overview-panel" class="panel summary" aria-labelledby="overview-heading">
+					<h2 id="overview-heading">Overview</h2>
+					<p class="muted">Monitor fulfillment queues, delayed orders, and customer incidents.</p>
+				</section>
+
+				<section id="orders-panel" class="panel hidden" aria-labelledby="orders-heading">
+					<h2 id="orders-heading">Orders</h2>
+					<p class="muted">Search customer orders and open the first matching order detail.</p>
+					<form class="filters" data-testid="order-filter-form">
+						<label>
+							Search customers or orders
+							<input
+								id="order-query"
+								name="query"
+								placeholder="Search customers or orders"
+								autocomplete="off"
+							/>
+						</label>
+						<label for="status-filter">Status</label>
+						<select id="status-filter" name="status">
+							<option value="open">open</option>
+							<option value="delayed">delayed</option>
+							<option value="blocked">blocked</option>
+							<option value="resolved">resolved</option>
+						</select>
+						<button type="submit">Apply filters</button>
+					</form>
+					<p class="state" data-testid="orders-state" aria-live="polite">
+						Ready to search operations orders.
+					</p>
+					<ul class="results" data-testid="order-results" aria-label="Order search results"></ul>
+					<section class="detail hidden" data-testid="order-detail" aria-live="polite"></section>
+				</section>
+			</main>
+		</div>
+
+		<script>
+			const links = Array.from(document.querySelectorAll("[data-section]"))
+			const overviewPanel = document.querySelector("#overview-panel")
+			const ordersPanel = document.querySelector("#orders-panel")
+			const form = document.querySelector("[data-testid='order-filter-form']")
+			const queryInput = form.elements.query
+			const statusSelect = form.elements.status
+			const state = document.querySelector("[data-testid='orders-state']")
+			const results = document.querySelector("[data-testid='order-results']")
+			const detail = document.querySelector("[data-testid='order-detail']")
+
+			function showSection(section) {
+				const isOrders = section === "orders"
+				overviewPanel.classList.toggle("hidden", isOrders)
+				ordersPanel.classList.toggle("hidden", !isOrders)
+				links.forEach((link) => {
+					if (link.dataset.section === section) {
+						link.setAttribute("aria-current", "page")
+					} else {
+						link.removeAttribute("aria-current")
+					}
+				})
+			}
+
+			function renderResults() {
+				const query = queryInput.value.trim() || "all orders"
+				const status = statusSelect.value
+				state.textContent = `Showing delayed operations orders for "${query}" with status "${status}".`
+				results.innerHTML = `
+					<li>
+						<div>
+							<span class="order-title">ORD-2042 ${query}</span>
+							<span class="muted">Customer queue status: ${status}</span>
+						</div>
+						<a class="action-link" href="#order-detail" aria-label="Open first order">Open first order</a>
+					</li>
+					<li>
+						<div>
+							<span class="order-title">ORD-2043 Follow-up for ${query}</span>
+							<span class="muted">Secondary match status: ${status}</span>
+						</div>
+						<span class="muted">Queued</span>
+					</li>
+				`
+				detail.classList.add("hidden")
+				document.body.dataset.workflowState = "orders-search-results"
+				document.body.dataset.workflowQuery = query
+				document.body.dataset.workflowStatus = status
+			}
+
+			function openFirstOrder() {
+				const query = queryInput.value.trim() || "all orders"
+				const status = statusSelect.value
+				detail.classList.remove("hidden")
+				detail.textContent = `Order detail opened for ${query}. Current status is ${status}.`
+				document.body.dataset.workflowState = "order-detail-opened"
+			}
+
+			links.forEach((link) => {
+				link.addEventListener("click", (event) => {
+					event.preventDefault()
+					showSection(link.dataset.section)
+					history.replaceState(null, "", link.getAttribute("href"))
+				})
+			})
+
+			form.addEventListener("submit", (event) => {
+				event.preventDefault()
+				renderResults()
+			})
+
+			results.addEventListener("click", (event) => {
+				const link = event.target.closest("a[aria-label='Open first order']")
+				if (!link) return
+				event.preventDefault()
+				openFirstOrder()
+			})
+
+			if (location.hash === "#orders") {
+				showSection("orders")
+			}
+		</script>
+	</body>
+</html>

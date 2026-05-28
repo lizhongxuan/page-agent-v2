@@ -1,0 +1,287 @@
+{
+  "run_20260528132636914044000_48000": {
+    "id": "run_20260528132636914044000_48000",
+    "projectId": "user-guide-1779974796820",
+    "workflowId": "wf_user_guide_1779974796820",
+    "version": 1,
+    "task": "",
+    "url": "file:///Users/lizhongxuan/Desktop/aiops/page-agent-v2/tests/fixtures/workflow-github-issues.html",
+    "variables": {
+      "query": "[redacted]",
+      "repo": "[redacted]"
+    },
+    "result": "succeeded",
+    "logs": [
+      {
+        "timestamp": "2026-05-28T13:26:37.483Z",
+        "event": "chunk_started",
+        "chunkId": "search_issues",
+        "pageState": "github_repo_home"
+      },
+      {
+        "timestamp": "2026-05-28T13:26:37.516Z",
+        "event": "interrupt_handler_not_found",
+        "chunkId": "search_issues",
+        "message": "No active interrupt handlers are available.",
+        "reason": "before_chunk"
+      },
+      {
+        "timestamp": "2026-05-28T13:26:37.519Z",
+        "event": "from_page_state_validated",
+        "chunkId": "search_issues",
+        "pageState": "github_repo_home"
+      },
+      {
+        "timestamp": "2026-05-28T13:26:37.524Z",
+        "event": "selector_attempted",
+        "stepId": "click_issues",
+        "selectorAttempts": [
+          {
+            "timestamp": "2026-05-28T13:26:37.524Z",
+            "stepId": "click_issues",
+            "strategy": "role",
+            "selector": "role link Issues",
+            "result": "success"
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-05-28T13:26:37.576Z",
+        "event": "selector_attempted",
+        "stepId": "fill_query",
+        "selectorAttempts": [
+          {
+            "timestamp": "2026-05-28T13:26:37.576Z",
+            "stepId": "fill_query",
+            "strategy": "placeholder",
+            "selector": "placeholder Search all issues",
+            "result": "success"
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-05-28T13:26:37.582Z",
+        "event": "selector_attempted",
+        "stepId": "submit_search",
+        "selectorAttempts": [
+          {
+            "timestamp": "2026-05-28T13:26:37.582Z",
+            "stepId": "submit_search",
+            "strategy": "role",
+            "selector": "role button Search",
+            "result": "success"
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-05-28T13:26:37.602Z",
+        "event": "chunk_finished",
+        "chunkId": "search_issues",
+        "pageState": "github_issues_search_results"
+      }
+    ],
+    "createdAt": "2026-05-28T13:26:36.914049Z"
+  },
+  "run_20260528132637667329000_377000": {
+    "id": "run_20260528132637667329000_377000",
+    "projectId": "user-guide-dialog-1779974797644",
+    "workflowId": "wf_user_guide_dialog_1779974797644",
+    "version": 1,
+    "task": "",
+    "url": "file:///Users/lizhongxuan/Desktop/aiops/page-agent-v2/tests/fixtures/workflow-github-issues-with-dialog.html",
+    "variables": {
+      "query": "[redacted]",
+      "repo": "[redacted]"
+    },
+    "result": "succeeded",
+    "logs": [
+      {
+        "timestamp": "2026-05-28T13:26:37.981Z",
+        "event": "chunk_started",
+        "chunkId": "search_issues",
+        "pageState": "github_repo_home"
+      },
+      {
+        "timestamp": "2026-05-28T13:26:37.999Z",
+        "event": "interrupt_detected",
+        "chunkId": "search_issues",
+        "message": "Common dialog action is visible: Got it"
+      },
+      {
+        "timestamp": "2026-05-28T13:26:38.043Z",
+        "event": "interrupt_handler_applied",
+        "chunkId": "search_issues",
+        "message": "Clicked Got it",
+        "appliedInterruptHandlerId": "builtin_common_dialog_dismiss"
+      },
+      {
+        "timestamp": "2026-05-28T13:26:38.197Z",
+        "event": "from_page_state_validated",
+        "chunkId": "search_issues",
+        "pageState": "github_repo_home"
+      },
+      {
+        "timestamp": "2026-05-28T13:26:38.2Z",
+        "event": "selector_attempted",
+        "stepId": "click_issues",
+        "selectorAttempts": [
+          {
+            "timestamp": "2026-05-28T13:26:38.2Z",
+            "stepId": "click_issues",
+            "strategy": "role",
+            "selector": "role link Issues",
+            "result": "success"
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-05-28T13:26:38.221Z",
+        "event": "selector_attempted",
+        "stepId": "fill_query",
+        "selectorAttempts": [
+          {
+            "timestamp": "2026-05-28T13:26:38.221Z",
+            "stepId": "fill_query",
+            "strategy": "placeholder",
+            "selector": "placeholder Search all issues",
+            "result": "success"
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-05-28T13:26:38.229Z",
+        "event": "selector_attempted",
+        "stepId": "submit_search",
+        "selectorAttempts": [
+          {
+            "timestamp": "2026-05-28T13:26:38.229Z",
+            "stepId": "submit_search",
+            "strategy": "role",
+            "selector": "role button Search",
+            "result": "success"
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-05-28T13:26:38.251Z",
+        "event": "chunk_finished",
+        "chunkId": "search_issues",
+        "pageState": "github_issues_search_results"
+      }
+    ],
+    "createdAt": "2026-05-28T13:26:37.667384Z"
+  },
+  "run_20260528132638314235000_238000": {
+    "id": "run_20260528132638314235000_238000",
+    "projectId": "user-guide-repair-1779974798287",
+    "workflowId": "wf_user_guide_repair_1779974798287",
+    "version": 1,
+    "task": "",
+    "url": "file:///Users/lizhongxuan/Desktop/aiops/page-agent-v2/tests/fixtures/workflow-github-issues.html",
+    "variables": {
+      "query": "[redacted]",
+      "repo": "[redacted]"
+    },
+    "result": "succeeded",
+    "logs": [
+      {
+        "timestamp": "2026-05-28T13:26:38.653Z",
+        "event": "chunk_started",
+        "chunkId": "search_issues",
+        "pageState": "github_repo_home"
+      },
+      {
+        "timestamp": "2026-05-28T13:26:38.678Z",
+        "event": "interrupt_handler_not_found",
+        "chunkId": "search_issues",
+        "message": "No active interrupt handlers are available.",
+        "reason": "before_chunk"
+      },
+      {
+        "timestamp": "2026-05-28T13:26:38.682Z",
+        "event": "from_page_state_validated",
+        "chunkId": "search_issues",
+        "pageState": "github_repo_home"
+      },
+      {
+        "timestamp": "2026-05-28T13:26:38.685Z",
+        "event": "selector_attempted",
+        "stepId": "click_issues",
+        "selectorAttempts": [
+          {
+            "timestamp": "2026-05-28T13:26:38.685Z",
+            "stepId": "click_issues",
+            "strategy": "role",
+            "selector": "role link Issues",
+            "result": "success"
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-05-28T13:26:43.728Z",
+        "event": "interrupt_handler_not_found",
+        "chunkId": "search_issues",
+        "message": "No active interrupt handlers are available.",
+        "reason": "locator_failed"
+      },
+      {
+        "timestamp": "2026-05-28T13:26:48.724Z",
+        "event": "selector_attempted",
+        "stepId": "fill_query",
+        "selectorAttempts": [
+          {
+            "timestamp": "2026-05-28T13:26:48.724Z",
+            "stepId": "fill_query",
+            "strategy": "placeholder",
+            "selector": "placeholder Old issue search",
+            "result": "failed",
+            "failureReason": "locator.waitFor: Timeout 5000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByPlaceholder('Old issue search').first() to be visible\u001b[22m\n"
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-05-28T13:26:48.724Z",
+        "event": "repair_patch_applied",
+        "chunkId": "search_issues",
+        "stepId": "fill_query",
+        "message": "Current issue search input",
+        "appliedRepairPatchId": "patch_20cf1b4cb41ed8bc"
+      },
+      {
+        "timestamp": "2026-05-28T13:26:48.726Z",
+        "event": "selector_attempted",
+        "stepId": "fill_query",
+        "selectorAttempts": [
+          {
+            "timestamp": "2026-05-28T13:26:48.726Z",
+            "stepId": "fill_query",
+            "strategy": "css",
+            "selector": "css input[name=\"q\"]",
+            "result": "success"
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-05-28T13:26:48.738Z",
+        "event": "selector_attempted",
+        "stepId": "submit_search",
+        "selectorAttempts": [
+          {
+            "timestamp": "2026-05-28T13:26:48.738Z",
+            "stepId": "submit_search",
+            "strategy": "role",
+            "selector": "role button Search",
+            "result": "success"
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-05-28T13:26:48.759Z",
+        "event": "chunk_finished",
+        "chunkId": "search_issues",
+        "pageState": "github_issues_search_results"
+      }
+    ],
+    "createdAt": "2026-05-28T13:26:38.314239Z"
+  }
+}

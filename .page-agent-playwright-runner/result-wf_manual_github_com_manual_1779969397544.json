@@ -1,0 +1,132 @@
+{
+  "logs": [
+    {
+      "timestamp": "2026-05-28T11:58:04.685Z",
+      "event": "chunk_started",
+      "chunkId": "chunk_1",
+      "pageState": "github_repo_home",
+      "appliedInterruptHandlerId": ""
+    },
+    {
+      "timestamp": "2026-05-28T11:58:04.706Z",
+      "event": "interrupt_detected",
+      "chunkId": "chunk_1",
+      "message": "Common dialog action is visible: OK"
+    },
+    {
+      "timestamp": "2026-05-28T11:58:04.755Z",
+      "event": "interrupt_handler_applied",
+      "chunkId": "chunk_1",
+      "appliedInterruptHandlerId": "builtin_common_dialog_dismiss",
+      "message": "Clicked OK"
+    },
+    {
+      "timestamp": "2026-05-28T11:58:04.909Z",
+      "event": "from_page_state_validated",
+      "chunkId": "chunk_1",
+      "pageState": "github_repo_home"
+    },
+    {
+      "timestamp": "2026-05-28T11:58:14.916Z",
+      "event": "selector_attempted",
+      "stepId": "step_1",
+      "selectorAttempts": [
+        {
+          "timestamp": "2026-05-28T11:58:14.916Z",
+          "stepId": "step_1",
+          "strategy": "css",
+          "selector": "css span",
+          "result": "success",
+          "failureReason": ""
+        }
+      ]
+    },
+    {
+      "timestamp": "2026-05-28T11:58:24.932Z",
+      "event": "selector_attempted",
+      "stepId": "step_2",
+      "selectorAttempts": [
+        {
+          "timestamp": "2026-05-28T11:58:24.932Z",
+          "stepId": "step_2",
+          "strategy": "css",
+          "selector": "css span",
+          "result": "success",
+          "failureReason": ""
+        }
+      ]
+    },
+    {
+      "timestamp": "2026-05-28T11:58:34.951Z",
+      "event": "selector_attempted",
+      "stepId": "step_3",
+      "selectorAttempts": [
+        {
+          "timestamp": "2026-05-28T11:58:34.951Z",
+          "stepId": "step_3",
+          "strategy": "css",
+          "selector": "css span",
+          "result": "success",
+          "failureReason": ""
+        }
+      ]
+    },
+    {
+      "timestamp": "2026-05-28T11:58:44.977Z",
+      "event": "selector_attempted",
+      "stepId": "step_4",
+      "selectorAttempts": [
+        {
+          "timestamp": "2026-05-28T11:58:44.977Z",
+          "stepId": "step_4",
+          "strategy": "css",
+          "selector": "css span",
+          "result": "success",
+          "failureReason": ""
+        }
+      ]
+    },
+    {
+      "timestamp": "2026-05-28T11:58:44.995Z",
+      "event": "chunk_finished",
+      "chunkId": "chunk_1",
+      "pageState": "github_repo_home",
+      "appliedInterruptHandlerId": ""
+    }
+  ],
+  "selectorStats": [
+    {
+      "stepId": "step_1",
+      "strategy": "css",
+      "selector": "css span",
+      "successCount": 1,
+      "failCount": 0,
+      "lastFailureReason": ""
+    },
+    {
+      "stepId": "step_2",
+      "strategy": "css",
+      "selector": "css span",
+      "successCount": 1,
+      "failCount": 0,
+      "lastFailureReason": ""
+    },
+    {
+      "stepId": "step_3",
+      "strategy": "css",
+      "selector": "css span",
+      "successCount": 1,
+      "failCount": 0,
+      "lastFailureReason": ""
+    },
+    {
+      "stepId": "step_4",
+      "strategy": "css",
+      "selector": "css span",
+      "successCount": 1,
+      "failCount": 0,
+      "lastFailureReason": ""
+    }
+  ],
+  "artifactRefs": []
+}
