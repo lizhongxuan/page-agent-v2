@@ -122,6 +122,22 @@ export function initPageController() {
 				sendResponse(getElementSnapshot(payload?.[0]))
 				break
 
+			case 'get_workflow_elements':
+				sendResponse(getWorkflowElements())
+				break
+
+			case 'workflow_click_element':
+				sendResponse(executeWorkflowElementAction(payload?.[0], 'click'))
+				break
+
+			case 'workflow_input_text':
+				sendResponse(executeWorkflowElementAction(payload?.[0], 'input', payload?.[1]))
+				break
+
+			case 'workflow_select_option':
+				sendResponse(executeWorkflowElementAction(payload?.[0], 'select', payload?.[1]))
+				break
+
 			case 'get_last_update_time':
 			case 'get_browser_state':
 			case 'update_tree':
@@ -131,6 +147,10 @@ export function initPageController() {
 			case 'select_option':
 			case 'scroll':
 			case 'scroll_horizontally':
+			case 'press_key':
+			case 'go_back':
+			case 'reload_page':
+			case 'wait_for_condition':
 			case 'execute_javascript':
 				executePageControllerMethod(pc, methodName, payload, shouldBypassPageLock(action))
 					.then((result: any) => sendResponse(result))
@@ -151,6 +171,114 @@ export function initPageController() {
 
 		return true
 	})
+}
+
+function getWorkflowElements() {
+	return getInteractiveElements().map((element, index) => {
+		const snapshot = getElementSnapshotFromElement(element, index)
+		return {
+			id: index,
+			...snapshot,
+			label: getElementLabel(element),
+			placeholder: element.getAttribute('placeholder') || undefined,
+			visible: isElementVisible(element),
+			enabled: !isElementDisabled(element),
+			covered: false,
+		}
+	})
+}
+
+function executeWorkflowElementAction(
+	target: any,
+	action: 'click' | 'input' | 'select',
+	value?: string
+) {
+	const element = resolveWorkflowElement(target)
+	if (!element) {
+		return { success: false, message: 'Workflow target no longer exists on the current page.' }
+	}
+	if (isElementDisabled(element)) {
+		return { success: false, message: 'Workflow target is disabled.' }
+	}
+
+	try {
+		if (action === 'click') {
+			element.click()
+			return { success: true, message: '✅ Workflow clicked target.' }
+		}
+
+		if (action === 'input') {
+			if (!isTextInputElement(element)) {
+				return { success: false, message: 'Workflow target is not an input element.' }
+			}
+			element.focus()
+			element.value = value ?? ''
+			element.dispatchEvent(new InputEvent('input', { bubbles: true, data: value ?? '' }))
+			element.dispatchEvent(new Event('change', { bubbles: true }))
+			return { success: true, message: '✅ Workflow filled target.' }
+		}
+
+		if (!(element instanceof HTMLSelectElement)) {
+			return { success: false, message: 'Workflow target is not a select element.' }
+		}
+		element.value = value ?? ''
+		element.dispatchEvent(new Event('input', { bubbles: true }))
+		element.dispatchEvent(new Event('change', { bubbles: true }))
+		return { success: true, message: '✅ Workflow selected option.' }
+	} catch (error) {
+		return {
+			success: false,
+			message: error instanceof Error ? error.message : String(error),
+		}
+	}
+}
+
+function resolveWorkflowElement(target: any): HTMLElement | null {
+	if (!target) return null
+	const byIndex = getInteractiveElements()[Number(target.id)]
+	if (byIndex && elementMatchesWorkflowTarget(byIndex, target)) return byIndex
+	if (target.css) {
+		const element = document.querySelector<HTMLElement>(target.css)
+		if (element) return element
+	}
+	if (target.xpath) {
+		const element = document.evaluate(
+			String(target.xpath).replace(/^xpath=/, ''),
+			document,
+			null,
+			XPathResult.FIRST_ORDERED_NODE_TYPE,
+			null
+		).singleNodeValue
+		if (element instanceof HTMLElement) return element
+	}
+	return (
+		getInteractiveElements().find((element) => elementMatchesWorkflowTarget(element, target)) ??
+		null
+	)
+}
+
+function elementMatchesWorkflowTarget(element: HTMLElement, target: any): boolean {
+	const snapshot = getElementSnapshotFromElement(element, Number(target.id) || 0)
+	const label = getElementLabel(element)
+	const placeholder = element.getAttribute('placeholder') || undefined
+	return (
+		equals(target.testId, snapshot.testId) ||
+		(!!target.role &&
+			!!target.name &&
+			equals(target.role, snapshot.role) &&
+			equals(target.name, snapshot.name)) ||
+		equals(target.label, label) ||
+		equals(target.placeholder, placeholder) ||
+		equals(target.text, snapshot.text)
+	)
+}
+
+function getInteractiveElements() {
+	return Array.from(
+		document.querySelectorAll<HTMLElement>(
+			'button,a,input,textarea,select,[role="button"],[role="link"],[role="textbox"],[role="combobox"],[tabindex]:not([tabindex="-1"])'
+		)
+	).filter(isElementVisible)
 }
 
 function executePageControllerMethod(
@@ -213,23 +341,48 @@ function getElementSnapshot(index: number | undefined) {
 	const element = getElementByIndex(index)
 	if (!element) return undefined
 
+	return getElementSnapshotFromElement(element, index)
+}
+
+function getElementSnapshotFromElement(element: HTMLElement, index: number) {
+	const role = element.getAttribute('role') || implicitRole(element)
+	const name =
+		getElementLabel(element) ||
+		element.getAttribute('aria-label') ||
+		element.getAttribute('placeholder') ||
+		element.getAttribute('title') ||
+		element.getAttribute('name') ||
+		element.textContent?.trim().slice(0, 120) ||
+		undefined
+	const text = element.textContent?.trim().slice(0, 120) || undefined
+	const css = stableCssSelector(element)
+	const testId =
+		element.getAttribute('data-testid') ||
+		element.getAttribute('data-test') ||
+		element.getAttribute('data-cy') ||
+		undefined
+	const xpath = stableXPath(element)
+	const candidates = [
+		testId ? { strategy: 'testId' as const, value: testId, confidence: 1 } : undefined,
+		role && name ? { strategy: 'role' as const, role, name, confidence: 0.95 } : undefined,
+		getElementLabel(element)
+			? { strategy: 'label' as const, value: getElementLabel(element), confidence: 0.9 }
+			: undefined,
+		name ? { strategy: 'placeholder' as const, value: name, confidence: 0.8 } : undefined,
+		text ? { strategy: 'text' as const, value: text, confidence: 0.7 } : undefined,
+		css ? { strategy: 'css' as const, value: css, confidence: 0.6 } : undefined,
+		xpath ? { strategy: 'xpath' as const, value: xpath, confidence: 0.4 } : undefined,
+	].filter(Boolean)
+
 	return {
 		elementIndex: index,
-		role: element.getAttribute('role') || implicitRole(element),
-		name:
-			element.getAttribute('aria-label') ||
-			element.getAttribute('placeholder') ||
-			element.getAttribute('title') ||
-			element.getAttribute('name') ||
-			element.textContent?.trim().slice(0, 120) ||
-			undefined,
-		text: element.textContent?.trim().slice(0, 120) || undefined,
-		css: stableCssSelector(element),
-		testId:
-			element.getAttribute('data-testid') ||
-			element.getAttribute('data-test') ||
-			element.getAttribute('data-cy') ||
-			undefined,
+		role,
+		name,
+		text,
+		css,
+		xpath,
+		testId,
+		candidates,
 	}
 }
 
@@ -262,6 +415,67 @@ function stableCssSelector(element: HTMLElement) {
 	return element.tagName.toLowerCase()
 }
 
+function stableXPath(element: HTMLElement): string | undefined {
+	if (element.id) return `//*[@id="${element.id.replace(/"/g, '\\"')}"]`
+	const parts: string[] = []
+	let current: Element | null = element
+	while (current && current.nodeType === Node.ELEMENT_NODE && current !== document.body) {
+		const tag = current.tagName.toLowerCase()
+		const siblings = Array.from(current.parentElement?.children ?? []).filter(
+			(sibling) => sibling.tagName === current?.tagName
+		)
+		const index = siblings.indexOf(current) + 1
+		parts.unshift(`${tag}[${index}]`)
+		current = current.parentElement
+	}
+	return parts.length ? `xpath=//${parts.join('/')}` : undefined
+}
+
+function getElementLabel(element: HTMLElement): string | undefined {
+	const ariaLabelledBy = element.getAttribute('aria-labelledby')
+	if (ariaLabelledBy) {
+		const label = ariaLabelledBy
+			.split(/\s+/)
+			.map((id) => document.getElementById(id)?.textContent?.trim())
+			.filter(Boolean)
+			.join(' ')
+		if (label) return label.slice(0, 120)
+	}
+	if (element.id) {
+		const label = document.querySelector<HTMLLabelElement>(`label[for="${CSS.escape(element.id)}"]`)
+		if (label?.textContent?.trim()) return label.textContent.trim().slice(0, 120)
+	}
+	const parentLabel = element.closest('label')
+	return parentLabel?.textContent?.trim().slice(0, 120) || undefined
+}
+
+function isElementVisible(element: HTMLElement): boolean {
+	const style = window.getComputedStyle(element)
+	const rect = element.getBoundingClientRect()
+	return (
+		style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0
+	)
+}
+
+function isElementDisabled(element: HTMLElement): boolean {
+	return (
+		element.hasAttribute('disabled') ||
+		element.getAttribute('aria-disabled') === 'true' ||
+		(element as HTMLInputElement).disabled
+	)
+}
+
+function isTextInputElement(
+	element: HTMLElement
+): element is HTMLInputElement | HTMLTextAreaElement {
+	return element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement
+}
+
+function equals(left?: string, right?: string): boolean {
+	if (!left || !right) return false
+	return left.trim().toLowerCase() === right.trim().toLowerCase()
+}
+
 function getMethodName(action: string): string {
 	switch (action) {
 		case 'get_last_update_time':
@@ -285,6 +499,14 @@ function getMethodName(action: string): string {
 			return 'scroll' as const
 		case 'scroll_horizontally':
 			return 'scrollHorizontally' as const
+		case 'press_key':
+			return 'pressKey' as const
+		case 'go_back':
+			return 'goBack' as const
+		case 'reload_page':
+			return 'reloadPage' as const
+		case 'wait_for_condition':
+			return 'waitForCondition' as const
 		case 'execute_javascript':
 			return 'executeJavascript' as const
 

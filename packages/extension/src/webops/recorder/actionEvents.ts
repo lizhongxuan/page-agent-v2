@@ -16,6 +16,33 @@ export interface RecordedActionTarget {
 	xpath?: string
 	testId?: string
 	elementIndex?: number
+	candidates?: RecordedTargetCandidate[]
+}
+
+export interface RecordedTargetCandidate {
+	strategy: 'testId' | 'role' | 'label' | 'placeholder' | 'text' | 'css' | 'xpath'
+	value?: string
+	role?: string
+	name?: string
+	nearText?: string
+	container?: string
+	confidence: number
+}
+
+export interface RecordedPageFingerprint {
+	url: string
+	title: string
+	visibleText?: string[]
+	controlSignatures?: RecordedControlSignature[]
+}
+
+export interface RecordedControlSignature {
+	role?: string
+	name?: string
+	label?: string
+	placeholder?: string
+	text?: string
+	testId?: string
 }
 
 export interface RecordedAction {
@@ -25,6 +52,8 @@ export interface RecordedAction {
 	pageUrl: string
 	pageTitle: string
 	target?: RecordedActionTarget
+	beforePage?: RecordedPageFingerprint
+	afterPage?: RecordedPageFingerprint
 	value?: string
 	result: 'success' | 'failed' | 'skipped'
 	note?: string

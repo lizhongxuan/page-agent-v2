@@ -1,5 +1,10 @@
 import { initPageController } from '@/agent/RemotePageController.content'
 import { mountWebOpsOverlay } from '@/webops/interactions/overlayRoot'
+import { ManualRecordingController } from '@/webops/recorder/manualRecording'
+import type {
+	ManualRecordingControlMessage,
+	ManualRecordingControlResponse,
+} from '@/webops/recorder/manualRecording'
 
 // import { DEMO_CONFIG } from '@/agent/constants'
 
@@ -13,6 +18,7 @@ export default defineContentScript({
 		console.debug(`${DEBUG_PREFIX} Loaded on ${window.location.href}`)
 		mountWebOpsOverlay()
 		initPageController()
+		initManualRecording()
 
 		// if auth token matches, expose agent to page
 		chrome.storage.local.get('PageAgentExtUserAuthToken').then((result) => {
@@ -37,6 +43,40 @@ export default defineContentScript({
 		})
 	},
 })
+
+function initManualRecording() {
+	const recorder = new ManualRecordingController()
+	chrome.runtime.onMessage.addListener(
+		(message: ManualRecordingControlMessage, _sender, sendResponse): true | undefined => {
+			if (message.type !== 'WEBOPS_MANUAL_RECORDING') return undefined
+
+			try {
+				if (message.action === 'start') {
+					recorder.start(message.task)
+					sendResponse({ ok: true, status: 'started' } satisfies ManualRecordingControlResponse)
+					return true
+				}
+				if (message.action === 'stop') {
+					const session = recorder.stop()
+					sendResponse({
+						ok: true,
+						status: 'stopped',
+						session,
+					} satisfies ManualRecordingControlResponse)
+					return true
+				}
+				recorder.cancel()
+				sendResponse({ ok: true, status: 'cancelled' } satisfies ManualRecordingControlResponse)
+			} catch (error) {
+				sendResponse({
+					ok: false,
+					error: error instanceof Error ? error.message : String(error),
+				} satisfies ManualRecordingControlResponse)
+			}
+			return true
+		}
+	)
+}
 
 async function exposeAgentToPage() {
 	const { MultiPageAgent } = await import('@/agent/MultiPageAgent')

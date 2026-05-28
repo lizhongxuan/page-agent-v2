@@ -10,9 +10,11 @@ import {
 	clickElement,
 	getElementByIndex,
 	inputTextElement,
+	pressKey,
 	scrollHorizontally,
 	scrollVertically,
 	selectOptionElement,
+	waitForCondition,
 } from './actions'
 import * as dom from './dom'
 import type { FlatDomTree, InteractiveElementDomNode } from './dom/dom_tree/type'
@@ -46,6 +48,61 @@ interface ActionResult {
 	success: boolean
 	message: string
 }
+
+export type PressKeyName =
+	| 'Enter'
+	| 'Escape'
+	| 'Tab'
+	| 'ArrowDown'
+	| 'ArrowUp'
+	| 'ArrowLeft'
+	| 'ArrowRight'
+	| 'Backspace'
+	| 'Delete'
+	| 'Space'
+
+export type WaitCondition =
+	| {
+			type: 'text_present'
+			text: string
+			timeoutMs?: number
+			pollIntervalMs?: number
+	  }
+	| {
+			type: 'text_absent'
+			text: string
+			timeoutMs?: number
+			pollIntervalMs?: number
+	  }
+	| {
+			type: 'element_present'
+			selector: string
+			timeoutMs?: number
+			pollIntervalMs?: number
+	  }
+	| {
+			type: 'element_absent'
+			selector: string
+			timeoutMs?: number
+			pollIntervalMs?: number
+	  }
+	| {
+			type: 'url_contains'
+			text: string
+			timeoutMs?: number
+			pollIntervalMs?: number
+	  }
+	| {
+			type: 'url_changed'
+			from: string
+			timeoutMs?: number
+			pollIntervalMs?: number
+	  }
+	| {
+			type: 'page_idle'
+			timeoutMs?: number
+			pollIntervalMs?: number
+	  }
 
 /**
  * PageController manages DOM state and element interactions.
@@ -308,6 +365,88 @@ export class PageController extends EventTarget {
 			return {
 				success: false,
 				message: `❌ Failed to select option: ${error}`,
+			}
+		}
+	}
+
+	/**
+	 * Press a keyboard key on the focused element, or on an indexed element first.
+	 */
+	async pressKey(options: { key: PressKeyName; index?: number }): Promise<ActionResult> {
+		try {
+			if (options.index !== undefined) {
+				this.assertIndexed()
+				getElementByIndex(this.selectorMap, options.index).focus({ preventScroll: true })
+			}
+
+			const target =
+				document.activeElement instanceof HTMLElement ? document.activeElement : document.body
+			await pressKey(target, options.key)
+
+			return {
+				success: true,
+				message: `✅ Pressed key (${options.key}).`,
+			}
+		} catch (error) {
+			return {
+				success: false,
+				message: `❌ Failed to press key: ${error}`,
+			}
+		}
+	}
+
+	/**
+	 * Navigate back in browser history.
+	 */
+	async goBack(): Promise<ActionResult> {
+		try {
+			window.history.back()
+			return {
+				success: true,
+				message: '✅ Navigated back.',
+			}
+		} catch (error) {
+			return {
+				success: false,
+				message: `❌ Failed to navigate back: ${error}`,
+			}
+		}
+	}
+
+	/**
+	 * Reload the current page.
+	 */
+	async reloadPage(): Promise<ActionResult> {
+		try {
+			window.location.reload()
+			return {
+				success: true,
+				message: '✅ Reloaded the current page.',
+			}
+		} catch (error) {
+			return {
+				success: false,
+				message: `❌ Failed to reload page: ${error}`,
+			}
+		}
+	}
+
+	/**
+	 * Wait for a bounded page condition without asking the model to guess wait time.
+	 */
+	async waitForCondition(condition: WaitCondition): Promise<ActionResult> {
+		try {
+			const result = await waitForCondition(condition)
+			return {
+				success: result.success,
+				message: result.success
+					? `✅ Condition met: ${condition.type}.`
+					: `⚠️ Timed out waiting for condition: ${condition.type}.`,
+			}
+		} catch (error) {
+			return {
+				success: false,
+				message: `❌ Failed to wait for condition: ${error}`,
 			}
 		}
 	}

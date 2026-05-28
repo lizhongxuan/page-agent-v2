@@ -5,6 +5,8 @@ import type {
 	ResolveContinuationInput,
 } from '@page-agent/core'
 
+import type { RecordedSession } from '@/webops/recorder/actionEvents'
+
 export interface SessionContinuationInput {
 	previousTask: string
 	userMessage: string
@@ -34,6 +36,12 @@ export interface ResolvedSessionContinuation {
 	decision?: ContinuationDecision
 }
 
+export interface BuildSessionContinuationDecisionContextInput {
+	previousTask: string
+	userMessage: string
+	previousSession?: RecordedSession | null
+}
+
 export function buildSessionContinuationTask({
 	previousTask,
 	userMessage,
@@ -55,6 +63,26 @@ export function formatSessionDisplayTask(previousTask: string, userMessage: stri
 
 export function getSessionContinuationBaseTask(task: string): string {
 	return task.split(/\n补充：/)[0]?.trim() || task.trim()
+}
+
+export function buildSessionContinuationDecisionContext({
+	previousTask,
+	userMessage,
+	previousSession,
+}: BuildSessionContinuationDecisionContextInput): SessionContinuationDecisionContext | undefined {
+	const lastStep = previousSession?.steps.at(-1)
+	const previousUrl = lastStep?.pageUrl ?? previousSession?.startUrl
+	if (!previousUrl) return undefined
+	const previousTitle = lastStep?.pageTitle ?? ''
+
+	return {
+		previousTask,
+		userMessage,
+		currentUrl: previousUrl,
+		currentTitle: previousTitle,
+		previousUrl,
+		previousTitle,
+	}
 }
 
 export function toContinuationResolverInput(
@@ -102,7 +130,7 @@ export function buildResolvedSessionContinuation({
 	return {
 		task,
 		displayTask,
-		carryHistory,
+		carryHistory: filterCarryHistory(carryHistory, resolvedDecision),
 		decision: resolvedDecision,
 	}
 }
@@ -112,5 +140,25 @@ function resolveContinuationDecision(
 	resolver: ContinuationResolverLike | undefined
 ): ContinuationDecision | undefined {
 	if (!context || !resolver) return undefined
+	if (!hasResolverEvidence(context)) return undefined
 	return resolver.resolve(toContinuationResolverInput(context))
+}
+
+function hasResolverEvidence(context: SessionContinuationDecisionContext): boolean {
+	return (
+		!!context.pendingQuestion ||
+		!!context.previousUrl ||
+		!!context.previousTitle ||
+		(context.previousBusinessObjects?.length ?? 0) > 0 ||
+		context.hasUnconfirmedRisk === true
+	)
+}
+
+function filterCarryHistory(
+	carryHistory: HistoricalEvent[] | undefined,
+	decision: ContinuationDecision
+): HistoricalEvent[] | undefined {
+	if (!carryHistory || !decision.discardedSections.includes('recentSteps')) return carryHistory
+	const filtered = carryHistory.filter((event) => event.type !== 'step')
+	return filtered.length > 0 ? filtered : undefined
 }

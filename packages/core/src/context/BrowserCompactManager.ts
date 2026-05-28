@@ -26,7 +26,7 @@ export class BrowserCompactManager {
 			)
 			.map((event) => (event.type === 'observation' ? this.redactDomIndexes(event.content) : ''))
 			.filter(Boolean)
-		const lastGoal = stepEvents.at(-1)?.reflection.next_goal ?? ''
+		const lastGoal = this.redactDomIndexes(stepEvents.at(-1)?.reflection.next_goal ?? '')
 
 		return {
 			userGoal: input.task,

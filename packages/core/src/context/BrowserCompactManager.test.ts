@@ -13,7 +13,7 @@ describe('BrowserCompactManager', () => {
 					reflection: {
 						evaluation_previous_goal: 'Opened search. Verdict: Success',
 						memory: 'Search page is open.',
-						next_goal: 'Search order.',
+						next_goal: 'Click [12] Search next.',
 					},
 					action: {
 						name: 'click_element_by_index',
@@ -36,6 +36,8 @@ describe('BrowserCompactManager', () => {
 		expect(summary.userGoal).toBe('Check order 123')
 		expect(summary.currentPageSemanticState.url).toBe('https://example.com/orders')
 		expect(JSON.stringify(summary)).not.toContain('[12]')
+		expect(summary.currentSubGoal).toBe('Click [stale-index] Search next.')
+		expect(summary.nextRecommendedActions).toEqual(['Click [stale-index] Search next.'])
 		expect(summary.completed[0]).toContain('click_element_by_index')
 	})
 })

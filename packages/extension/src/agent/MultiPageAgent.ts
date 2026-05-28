@@ -13,6 +13,10 @@ import {
 	recordWebOpsAction,
 	startWebOpsSession,
 } from '@/webops/recorder/runtimeSession'
+import type {
+	WorkflowReplayResult,
+	WorkflowReplayService,
+} from '@/webops/workflow/WorkflowReplayService'
 
 import { RemotePageController } from './RemotePageController'
 import { TabsController } from './TabsController'
@@ -48,9 +52,20 @@ interface MultiPageAgentConfig extends AgentConfig {
  */
 export class MultiPageAgent extends PageAgentCore {
 	private getWebOpsSessionRef: () => RecordedSession | undefined = () => undefined
+	private replayWorkflowRef: (
+		task: string,
+		service: WorkflowReplayService
+	) => Promise<WorkflowReplayResult> = async () => ({
+		status: 'skipped',
+		reason: 'Agent has not initialized workflow replay.',
+	})
 
 	getWebOpsSession() {
 		return this.getWebOpsSessionRef()
+	}
+
+	tryReplayWorkflow(task: string, service: WorkflowReplayService): Promise<WorkflowReplayResult> {
+		return this.replayWorkflowRef(task, service)
 	}
 
 	constructor(config: MultiPageAgentConfig) {
@@ -212,6 +227,39 @@ export class MultiPageAgent extends PageAgentCore {
 		}
 
 		this.getWebOpsSessionRef = () => webOpsSession
+		this.replayWorkflowRef = async (task, service) => {
+			await tabsController.init(task, { includeInitialTab, experimentalIncludeAllTabs })
+			const requestedUrl = extractReplayStartUrl(task)
+			if (requestedUrl) {
+				const current = tabsController.currentTabId
+					? await tabsController.getTabInfo(tabsController.currentTabId)
+					: { url: '' }
+				if (!sameUrlWithoutHash(current.url, requestedUrl)) {
+					await tabsController.openNewTab(requestedUrl)
+				}
+			}
+			if (tabsController.currentTabId) {
+				await tabsController.waitUntilTabLoaded(tabsController.currentTabId)
+			}
+			return service.tryReplay(task, pageController)
+		}
+	}
+}
+
+function extractReplayStartUrl(task: string): string | undefined {
+	const match = /https?:\/\/[^\s"'<>，。)）]+/i.exec(task)
+	return match?.[0]
+}
+
+function sameUrlWithoutHash(left: string, right: string): boolean {
+	try {
+		const leftUrl = new URL(left)
+		const rightUrl = new URL(right)
+		leftUrl.hash = ''
+		rightUrl.hash = ''
+		return leftUrl.toString() === rightUrl.toString()
+	} catch {
+		return left === right
 	}
 }
 

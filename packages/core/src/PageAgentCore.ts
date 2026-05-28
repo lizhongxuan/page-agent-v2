@@ -15,6 +15,7 @@ import {
 	observeSearchPage,
 	shouldBlockSearchPaginationClick,
 } from './searchExplorationGuard'
+import { normalizeToolOutput, shouldStopBatchForOutput } from './toolOutput'
 import { type PageAgentTool, tools } from './tools'
 import type {
 	AgentActivity,
@@ -487,7 +488,8 @@ export class PageAgentCore extends EventTarget {
 		const startTime = Date.now()
 
 		// Execute tool, bind `this` to PageAgent
-		const result = await tool.execute.bind(this)(toolInput)
+		const rawResult = await tool.execute.bind(this)(toolInput)
+		const result = normalizeToolOutput(rawResult, toolName)
 
 		const duration = Date.now() - startTime
 		console.log(chalk.green.bold(`Tool (${toolName}) executed for ${duration}ms`), result)
@@ -540,7 +542,7 @@ export class PageAgentCore extends EventTarget {
 	}
 
 	#shouldStopBatch(output: string): boolean {
-		return output.startsWith('❌') || output.startsWith('⚠️')
+		return shouldStopBatchForOutput(output)
 	}
 
 	/**

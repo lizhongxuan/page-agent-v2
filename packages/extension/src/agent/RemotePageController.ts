@@ -3,6 +3,7 @@ import type { BrowserState } from '@page-agent/page-controller'
 import type { InteractionEvent, InteractionResponse } from '@/webops/interactions/interactionTypes'
 import type { RecordedActionTarget, RecordedActionType } from '@/webops/recorder/actionEvents'
 import { recordWebOpsAction } from '@/webops/recorder/runtimeSession'
+import type { ResolvableElement } from '@/webops/workflow/TargetResolver'
 
 import type { TabsController } from './TabsController'
 import { normalizeBrowserStateResponse } from './browserState'
@@ -148,6 +149,48 @@ export class RemotePageController {
 
 	async scrollHorizontally(...args: any[]): Promise<DomActionReturn> {
 		return this.remoteCallDomAction('scroll_horizontally', args)
+	}
+
+	async pressKey(...args: any[]): Promise<DomActionReturn> {
+		return this.remoteCallDomAction('press_key', args)
+	}
+
+	async goBack(): Promise<DomActionReturn> {
+		return this.remoteCallDomAction('go_back', [])
+	}
+
+	async reloadPage(): Promise<DomActionReturn> {
+		return this.remoteCallDomAction('reload_page', [])
+	}
+
+	async waitForCondition(...args: any[]): Promise<DomActionReturn> {
+		return this.remoteCallDomAction('wait_for_condition', args)
+	}
+
+	async getWorkflowElements(): Promise<ResolvableElement[]> {
+		if (!this.currentTabId || !isContentScriptAllowed(await this.getCurrentUrl())) return []
+
+		const response = await sendMessage({
+			type: 'PAGE_CONTROL',
+			action: 'get_workflow_elements',
+			targetTabId: this.currentTabId,
+		})
+		return Array.isArray(response) ? response : []
+	}
+
+	async clickWorkflowElement(element: ResolvableElement): Promise<void> {
+		const result = await this.remoteCallDomAction('workflow_click_element', [element])
+		if (!result?.success) throw new Error(result?.message || 'Workflow click failed.')
+	}
+
+	async inputWorkflowElement(element: ResolvableElement, value: string): Promise<void> {
+		const result = await this.remoteCallDomAction('workflow_input_text', [element, value])
+		if (!result?.success) throw new Error(result?.message || 'Workflow input failed.')
+	}
+
+	async selectWorkflowElement(element: ResolvableElement, value: string): Promise<void> {
+		const result = await this.remoteCallDomAction('workflow_select_option', [element, value])
+		if (!result?.success) throw new Error(result?.message || 'Workflow select failed.')
 	}
 
 	async executeJavascript(...args: any[]): Promise<DomActionReturn> {

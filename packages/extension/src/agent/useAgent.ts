@@ -16,6 +16,11 @@ import {
 	defaultKnowledgeSettings,
 } from '@/webops/knowledge/KnowledgeSettings'
 import type { RecordedSession } from '@/webops/recorder/actionEvents'
+import {
+	type WorkflowCandidateSummary,
+	WorkflowCandidateUploader,
+} from '@/webops/workflow/WorkflowCandidateUploader'
+import { WorkflowReplayService } from '@/webops/workflow/WorkflowReplayService'
 
 import { MultiPageAgent } from './MultiPageAgent'
 import { type PendingUserQuestion, createAskUserBridge } from './askUserBridge'
@@ -50,6 +55,7 @@ export interface UseAgentResult {
 	currentTask: string
 	config: ExtConfig | null
 	webOpsSession: RecordedSession | null | undefined
+	pendingWorkflowCandidate: WorkflowCandidateSummary | null
 	pendingQuestion: PendingUserQuestion | null
 	execute: (task: string, options?: ExecuteOptions) => Promise<ExecutionResult>
 	answerQuestion: (answer: string) => boolean
@@ -76,6 +82,8 @@ export function useAgent(): UseAgentResult {
 	const [currentTask, setCurrentTask] = useState('')
 	const [config, setConfig] = useState<ExtConfig | null>(null)
 	const [webOpsSession, setWebOpsSession] = useState<RecordedSession | null | undefined>(undefined)
+	const [pendingWorkflowCandidate, setPendingWorkflowCandidate] =
+		useState<WorkflowCandidateSummary | null>(null)
 	const [pendingQuestion, setPendingQuestion] = useState<PendingUserQuestion | null>(null)
 
 	useEffect(() => {
@@ -157,27 +165,93 @@ export function useAgent(): UseAgentResult {
 		}
 	}, [config])
 
-	const execute = useCallback(async (task: string, options: ExecuteOptions = {}) => {
-		const agent = agentRef.current
-		if (!agent) throw new Error('Agent not initialized')
+	const execute = useCallback(
+		async (task: string, options: ExecuteOptions = {}) => {
+			const agent = agentRef.current
+			if (!agent) throw new Error('Agent not initialized')
+			const activeConfig = config
+			if (!activeConfig) throw new Error('Agent config not initialized')
 
-		askBridgeRef.current?.cancel('用户开始了新任务，上一轮问题已取消。')
-		const resolvedContinuation = buildResolvedSessionContinuation({
-			task,
-			displayTask: options.displayTask,
-			carryHistory: options.carryHistory,
-			context: options.continuationContext,
-			decision: options.continuationDecision,
-			resolver: options.continuationResolver,
-		})
-		historyPrefixRef.current = resolvedContinuation.carryHistory ?? []
-		setCurrentTask(resolvedContinuation.displayTask ?? resolvedContinuation.task)
-		setHistory([...historyPrefixRef.current])
-		setWebOpsSession(undefined)
-		const result = await agent.execute(resolvedContinuation.task)
-		setWebOpsSession(agent.getWebOpsSession() ?? null)
-		return result
-	}, [])
+			askBridgeRef.current?.cancel('用户开始了新任务，上一轮问题已取消。')
+			const resolvedContinuation = buildResolvedSessionContinuation({
+				task,
+				displayTask: options.displayTask,
+				carryHistory: options.carryHistory,
+				context: options.continuationContext,
+				decision: options.continuationDecision,
+				resolver: options.continuationResolver,
+			})
+			historyPrefixRef.current = resolvedContinuation.carryHistory ?? []
+			setCurrentTask(resolvedContinuation.displayTask ?? resolvedContinuation.task)
+			setHistory([...historyPrefixRef.current])
+			setWebOpsSession(undefined)
+			setPendingWorkflowCandidate(null)
+
+			if (activeConfig.knowledgeSettings?.enabled && activeConfig.knowledgeSettings.baseUrl) {
+				setStatus('running')
+				const replayService = new WorkflowReplayService({
+					baseUrl: activeConfig.knowledgeSettings.baseUrl,
+					apiKey: activeConfig.knowledgeSettings.apiKey || undefined,
+					projectId: activeConfig.knowledgeSettings.projectKey || 'default',
+					llmConfig: activeConfig,
+				})
+				const replay = await agent
+					.tryReplayWorkflow(resolvedContinuation.task, replayService)
+					.catch((error: unknown) => ({
+						status: 'fallback' as const,
+						reason: error instanceof Error ? error.message : String(error),
+					}))
+				if (replay.status === 'completed') {
+					const replayHistory: HistoricalEvent[] = [
+						...historyPrefixRef.current,
+						{
+							type: 'observation',
+							content: `✅ Workflow replay completed: ${replay.workflowName} (${replay.executedStepIds.length} steps).`,
+						},
+					]
+					historyPrefixRef.current = replayHistory
+					setHistory(replayHistory)
+					setWebOpsSession(null)
+					setStatus('completed')
+					return { success: true, data: 'Workflow replay completed.', history: replayHistory }
+				}
+				if (replay.status === 'fallback') {
+					historyPrefixRef.current = [
+						...historyPrefixRef.current,
+						{
+							type: 'observation',
+							content: `⚠️ Workflow replay skipped; falling back to Agent. Reason: ${replay.reason}`,
+						},
+					]
+					setHistory([...historyPrefixRef.current])
+				}
+				setStatus(agent.status)
+			}
+
+			const result = await agent.execute(resolvedContinuation.task)
+			const completedSession = agent.getWebOpsSession() ?? null
+			setWebOpsSession(completedSession)
+			if (
+				result.success &&
+				completedSession &&
+				activeConfig.knowledgeSettings?.enabled &&
+				activeConfig.knowledgeSettings.baseUrl
+			) {
+				const uploader = new WorkflowCandidateUploader({
+					baseUrl: activeConfig.knowledgeSettings.baseUrl,
+					apiKey: activeConfig.knowledgeSettings.apiKey || undefined,
+				})
+				const upload = await uploader.uploadSuccessfulSession(completedSession)
+				if (upload.ok) {
+					setPendingWorkflowCandidate(upload.candidate)
+				} else {
+					console.warn('[WorkflowCandidateUploader] Candidate upload failed:', upload.error)
+				}
+			}
+			return result
+		},
+		[config]
+	)
 
 	const answerQuestion = useCallback((answer: string) => {
 		return askBridgeRef.current?.answer(answer) ?? false
@@ -190,6 +264,7 @@ export function useAgent(): UseAgentResult {
 		setActivity(null)
 		setCurrentTask('')
 		setWebOpsSession(undefined)
+		setPendingWorkflowCandidate(null)
 		setPendingQuestion(null)
 		setStatus('idle')
 	}, [])
@@ -244,6 +319,7 @@ export function useAgent(): UseAgentResult {
 		currentTask,
 		config,
 		webOpsSession,
+		pendingWorkflowCandidate,
 		pendingQuestion,
 		execute,
 		answerQuestion,

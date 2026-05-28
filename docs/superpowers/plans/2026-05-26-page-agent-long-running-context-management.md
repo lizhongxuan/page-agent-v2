@@ -1947,3 +1947,41 @@ git commit -m "docs: plan long-running context management"
 - [x] `npm test -- packages/core/src/context` passes.
 - [x] `npm run typecheck` passes.
 - [x] Any `npm run lint` findings are fixed or documented as pre-existing.
+
+## Post-Review Fixes
+
+- [x] Redact stale DOM indexes from compacted reflection goals and next recommended actions.
+- [x] Preserve legacy extension continuation behavior when resolver input has no previous page, pending question, business object, or risk evidence.
+- [x] Drop carried step history when a continuation decision discards `recentSteps`.
+- [x] Route side-panel follow-up submissions through `ContinuationResolver` when a previous recorded page is available.
+
+## Phase 8: Replay Operation Examples
+
+### Task 18: Add Reusable Replay Example Sessions
+
+**Files:**
+
+- Create: `packages/extension/src/webops/playwright/replayExamples.ts`
+- Test: `packages/extension/src/webops/playwright/replayExamples.test.ts`
+
+- [x] **Step 1: Add failing tests for three replay examples**
+- [x] **Step 2: Implement the example recorded sessions**
+- [x] **Step 3: Verify generated replay code covers input, click, select, wait, extract, observe, navigation, and manual handover**
+
+### Task 19: Run Local Replay Smoke
+
+**Files:**
+
+- Generated only under `/private/tmp/page-agent-replay-examples`
+
+- [x] **Step 1: Generate one replay project from the search/detail example**
+- [x] **Step 2: Serve a local fixture page**
+- [x] **Step 3: Run `npx playwright test` against the generated replay**
+- [x] **Step 4: Record replay outcome in this plan**
+
+Replay smoke result:
+
+- Generated project: `/private/tmp/page-agent-replay-examples/service-search-detail`
+- Fixture server: `http://127.0.0.1:4183`
+- Command: `npx playwright test --config /private/tmp/page-agent-replay-examples/service-search-detail/playwright.config.ts /private/tmp/page-agent-replay-examples/service-search-detail/tests/replay.spec.ts`
+- Result: 1 passed in 1.1s. The replay filled `Service name`, clicked `Search`, waited for network idle, opened `checkout`, navigated to the detail page, and verified `Healthy`.

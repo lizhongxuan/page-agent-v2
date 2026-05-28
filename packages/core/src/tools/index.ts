@@ -125,6 +125,114 @@ tools.set(
 	})
 )
 
+tools.set(
+	'press_key',
+	tool({
+		description:
+			'Press a keyboard key on the currently focused element, or focus an indexed element first when index is provided. Useful for Enter search submit, Escape closing dialogs, Tab focus movement, and Arrow keys in menus.',
+		inputSchema: z.object({
+			key: z.enum([
+				'Enter',
+				'Escape',
+				'Tab',
+				'ArrowDown',
+				'ArrowUp',
+				'ArrowLeft',
+				'ArrowRight',
+				'Backspace',
+				'Delete',
+				'Space',
+			]),
+			index: z.int().min(0).optional(),
+		}),
+		execute: async function (this: PageAgentCore, input) {
+			const result = await this.pageController.pressKey(input)
+			return result.message
+		},
+	})
+)
+
+tools.set(
+	'go_back',
+	tool({
+		description:
+			'Navigate back in browser history. Use this to recover from a wrong page, return from a detail page to a list, or undo navigation.',
+		inputSchema: z.object({}),
+		execute: async function (this: PageAgentCore) {
+			const result = await this.pageController.goBack()
+			return result.message
+		},
+	})
+)
+
+tools.set(
+	'reload_page',
+	tool({
+		description:
+			'Reload the current page. Use this when the page is stale, stuck, or failed to load correctly.',
+		inputSchema: z.object({}),
+		execute: async function (this: PageAgentCore) {
+			const result = await this.pageController.reloadPage()
+			return result.message
+		},
+	})
+)
+
+tools.set(
+	'wait_for_condition',
+	tool({
+		description:
+			'Wait until a specific page condition is met. Prefer this over blind waiting when you know what text, element, URL change, or loading completion you expect.',
+		inputSchema: z.discriminatedUnion('type', [
+			z.object({
+				type: z.literal('text_present'),
+				text: z.string(),
+				timeoutMs: z.number().int().min(100).max(30_000).optional(),
+				pollIntervalMs: z.number().int().min(25).max(2_000).optional(),
+			}),
+			z.object({
+				type: z.literal('text_absent'),
+				text: z.string(),
+				timeoutMs: z.number().int().min(100).max(30_000).optional(),
+				pollIntervalMs: z.number().int().min(25).max(2_000).optional(),
+			}),
+			z.object({
+				type: z.literal('element_present'),
+				selector: z.string(),
+				timeoutMs: z.number().int().min(100).max(30_000).optional(),
+				pollIntervalMs: z.number().int().min(25).max(2_000).optional(),
+			}),
+			z.object({
+				type: z.literal('element_absent'),
+				selector: z.string(),
+				timeoutMs: z.number().int().min(100).max(30_000).optional(),
+				pollIntervalMs: z.number().int().min(25).max(2_000).optional(),
+			}),
+			z.object({
+				type: z.literal('url_contains'),
+				text: z.string(),
+				timeoutMs: z.number().int().min(100).max(30_000).optional(),
+				pollIntervalMs: z.number().int().min(25).max(2_000).optional(),
+			}),
+			z.object({
+				type: z.literal('url_changed'),
+				from: z.string(),
+				timeoutMs: z.number().int().min(100).max(30_000).optional(),
+				pollIntervalMs: z.number().int().min(25).max(2_000).optional(),
+			}),
+			z.object({
+				type: z.literal('page_idle'),
+				timeoutMs: z.number().int().min(100).max(30_000).optional(),
+				pollIntervalMs: z.number().int().min(25).max(2_000).optional(),
+			}),
+		]),
+		execute: async function (this: PageAgentCore, input) {
+			const result = await this.pageController.waitForCondition(input)
+			return result.message
+		},
+	})
+)
+
 /**
  * @note Reference from browser-use
  */

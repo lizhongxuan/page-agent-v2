@@ -2,6 +2,7 @@
  * Copyright (C) 2025 Alibaba Group Holding Limited
  * All rights reserved.
  */
+import type { PressKeyName, WaitCondition } from './PageController'
 import type { InteractiveElementDomNode } from './dom/dom_tree/type'
 import {
 	clickPointer,
@@ -253,6 +254,156 @@ export async function selectOptionElement(selectElement: HTMLSelectElement, opti
 	selectElement.dispatchEvent(new Event('change', { bubbles: true }))
 
 	await waitFor(0.1) // Wait to ensure change event processing completes
+}
+
+const keyEventMap: Record<PressKeyName, { key: string; code: string; keyCode: number }> = {
+	Enter: { key: 'Enter', code: 'Enter', keyCode: 13 },
+	Escape: { key: 'Escape', code: 'Escape', keyCode: 27 },
+	Tab: { key: 'Tab', code: 'Tab', keyCode: 9 },
+	ArrowDown: { key: 'ArrowDown', code: 'ArrowDown', keyCode: 40 },
+	ArrowUp: { key: 'ArrowUp', code: 'ArrowUp', keyCode: 38 },
+	ArrowLeft: { key: 'ArrowLeft', code: 'ArrowLeft', keyCode: 37 },
+	ArrowRight: { key: 'ArrowRight', code: 'ArrowRight', keyCode: 39 },
+	Backspace: { key: 'Backspace', code: 'Backspace', keyCode: 8 },
+	Delete: { key: 'Delete', code: 'Delete', keyCode: 46 },
+	Space: { key: ' ', code: 'Space', keyCode: 32 },
+}
+
+export async function pressKey(element: HTMLElement, key: PressKeyName) {
+	const keyInfo = keyEventMap[key]
+	const target = element || document.body
+	const eventInit: KeyboardEventInit = {
+		key: keyInfo.key,
+		code: keyInfo.code,
+		keyCode: keyInfo.keyCode,
+		which: keyInfo.keyCode,
+		bubbles: true,
+		cancelable: true,
+	}
+
+	const keydown = new KeyboardEvent('keydown', eventInit)
+	const shouldContinue = target.dispatchEvent(keydown)
+
+	if (shouldContinue) {
+		applyKeyDefault(target, key)
+	}
+
+	target.dispatchEvent(new KeyboardEvent('keyup', eventInit))
+	await waitFor(0.1)
+}
+
+function applyKeyDefault(target: HTMLElement, key: PressKeyName) {
+	if (key === 'Escape') {
+		target.blur()
+		return
+	}
+
+	if (key === 'Tab') {
+		focusNextElement(target, !isShiftPressed())
+		return
+	}
+
+	if (key === 'Enter' && target instanceof HTMLButtonElement) {
+		target.click()
+		return
+	}
+
+	if (key === 'Enter' && target instanceof HTMLInputElement) {
+		const form = target.form
+		if (!form) return
+		const submitter = form.querySelector<HTMLElement>(
+			'button[type="submit"], input[type="submit"], button:not([type])'
+		)
+		submitter?.click()
+	}
+}
+
+function isShiftPressed() {
+	return false
+}
+
+function focusNextElement(current: HTMLElement, forward: boolean) {
+	const focusable = Array.from(
+		document.querySelectorAll<HTMLElement>(
+			'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+		)
+	).filter((element) => element.offsetParent !== null || element === current)
+
+	if (!focusable.length) return
+
+	const currentIndex = focusable.indexOf(current)
+	const fallbackIndex = forward ? 0 : focusable.length - 1
+	const nextIndex =
+		currentIndex === -1
+			? fallbackIndex
+			: (currentIndex + (forward ? 1 : -1) + focusable.length) % focusable.length
+
+	focusable[nextIndex]?.focus()
+}
+
+export async function waitForCondition(condition: WaitCondition) {
+	const timeoutMs = clamp(condition.timeoutMs ?? 5_000, 100, 30_000)
+	const pollIntervalMs = clamp(condition.pollIntervalMs ?? 200, 25, 2_000)
+	const start = Date.now()
+
+	while (Date.now() - start <= timeoutMs) {
+		if (isConditionMet(condition)) {
+			return { success: true }
+		}
+		await waitFor(pollIntervalMs / 1000)
+	}
+
+	return { success: false }
+}
+
+function isConditionMet(condition: WaitCondition): boolean {
+	switch (condition.type) {
+		case 'text_present':
+			return getPageText().includes(condition.text)
+		case 'text_absent':
+			return !getPageText().includes(condition.text)
+		case 'element_present':
+			return Boolean(document.querySelector(condition.selector))
+		case 'element_absent':
+			return !document.querySelector(condition.selector)
+		case 'url_contains':
+			return window.location.href.includes(condition.text)
+		case 'url_changed':
+			return window.location.href !== condition.from
+		case 'page_idle':
+			return document.readyState === 'complete' && !hasVisibleLoadingIndicator()
+	}
+}
+
+function getPageText() {
+	return document.body?.innerText || document.body?.textContent || ''
+}
+
+function hasVisibleLoadingIndicator() {
+	const selectors = [
+		'[aria-busy="true"]',
+		'[aria-label*="loading" i]',
+		'[class*="loading" i]',
+		'[class*="spinner" i]',
+		'[data-loading="true"]',
+	]
+
+	return selectors.some((selector) =>
+		Array.from(document.querySelectorAll<HTMLElement>(selector)).some(isElementVisible)
+	)
+}
+
+function isElementVisible(element: HTMLElement) {
+	const style = window.getComputedStyle(element)
+	if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
+		return false
+	}
+	const rect = element.getBoundingClientRect()
+	return rect.width > 0 || rect.height > 0
+}
+
+function clamp(value: number, min: number, max: number) {
+	return Math.min(max, Math.max(min, value))
 }
 
 interface ScrollableElement extends Element {

@@ -64,6 +64,49 @@ describe('SessionRecorder', () => {
 		expect(session.steps.map((step) => step.type)).toEqual(types)
 	})
 
+	it('preserves page fingerprints and stable target candidates without screenshots', () => {
+		const recorder = new SessionRecorder()
+		recorder.start({ id: 's1', task: '搜索', startUrl: 'https://example.test' })
+
+		recorder.record({
+			id: 'a1',
+			type: 'click',
+			timestamp: 1,
+			pageUrl: 'https://example.test',
+			pageTitle: 'Example',
+			target: {
+				role: 'button',
+				name: 'Search',
+				elementIndex: 7,
+				candidates: [
+					{ strategy: 'role', role: 'button', name: 'Search', confidence: 0.95 },
+					{ strategy: 'text', value: 'Search', confidence: 0.7 },
+				],
+			},
+			beforePage: {
+				url: 'https://example.test',
+				title: 'Example',
+				visibleText: ['Search'],
+				controlSignatures: [{ role: 'button', name: 'Search' }],
+			},
+			afterPage: {
+				url: 'https://example.test/results',
+				title: 'Results',
+				visibleText: ['Results'],
+			},
+			result: 'success',
+		})
+
+		const session = recorder.finish()
+		expect(session.steps[0].target?.candidates?.[0]).toMatchObject({
+			strategy: 'role',
+			role: 'button',
+			name: 'Search',
+		})
+		expect(session.steps[0].beforePage?.visibleText).toEqual(['Search'])
+		expect(JSON.stringify(session)).not.toContain('screenshot')
+	})
+
 	it('throws when finishing before start', () => {
 		const recorder = new SessionRecorder()
 		expect(() => recorder.finish()).toThrow('SessionRecorder has not started')

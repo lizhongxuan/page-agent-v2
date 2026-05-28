@@ -1,5 +1,6 @@
-import { History, Plus, Send, Settings, Square } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { ContinuationResolver } from '@page-agent/core'
+import { Circle, History, Plus, Send, Settings, Square } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { ConfigPanel } from '@/components/ConfigPanel'
 import { HistoryDetail } from '@/components/HistoryDetail'
@@ -14,8 +15,15 @@ import {
 	InputGroupTextarea,
 } from '@/components/ui/input-group'
 import { saveSession } from '@/lib/db'
+import { startManualRecording, stopManualRecording } from '@/webops/recorder/manualRecordingClient'
+import { WorkflowCandidateClient } from '@/webops/workflow/WorkflowCandidateClient'
+import {
+	type WorkflowCandidateSummary,
+	WorkflowCandidateUploader,
+} from '@/webops/workflow/WorkflowCandidateUploader'
 
 import {
+	buildSessionContinuationDecisionContext,
 	buildSessionContinuationTask,
 	formatSessionDisplayTask,
 	getSessionContinuationBaseTask,
@@ -35,8 +43,15 @@ interface RunTaskOptions {
 export default function App() {
 	const [view, setView] = useState<View>({ name: 'chat' })
 	const [inputValue, setInputValue] = useState('')
+	const [manualRecordingStatus, setManualRecordingStatus] = useState<
+		'idle' | 'recording' | 'uploading' | 'approving' | 'enabled'
+	>('idle')
+	const [manualRecordingError, setManualRecordingError] = useState('')
+	const [pendingManualCandidate, setPendingManualCandidate] =
+		useState<WorkflowCandidateSummary | null>(null)
 	const historyRef = useRef<HTMLDivElement>(null)
 	const textareaRef = useRef<HTMLTextAreaElement>(null)
+	const continuationResolver = useMemo(() => new ContinuationResolver(), [])
 
 	const {
 		status,
@@ -45,6 +60,7 @@ export default function App() {
 		currentTask,
 		config,
 		webOpsSession,
+		pendingWorkflowCandidate,
 		pendingQuestion,
 		execute,
 		answerQuestion,
@@ -103,12 +119,24 @@ export default function App() {
 				? formatSessionDisplayTask(previousTask, normalizedTask)
 				: normalizedTask
 			const carryHistory = shouldContinueSession ? history : undefined
+			const continuationContext = shouldContinueSession
+				? buildSessionContinuationDecisionContext({
+						previousTask,
+						userMessage: normalizedTask,
+						previousSession: webOpsSession,
+					})
+				: undefined
 
-			execute(taskToExecute, { displayTask, carryHistory }).catch((error) => {
+			execute(taskToExecute, {
+				displayTask,
+				carryHistory,
+				continuationContext,
+				continuationResolver,
+			}).catch((error) => {
 				console.error('[SidePanel] Failed to execute task:', error)
 			})
 		},
-		[currentTask, execute, history, status]
+		[continuationResolver, currentTask, execute, history, status, webOpsSession]
 	)
 
 	const handleSubmit = useCallback(
@@ -132,6 +160,65 @@ export default function App() {
 		console.log('[SidePanel] Stopping task...')
 		stop()
 	}, [stop])
+
+	const handleToggleRecording = useCallback(async () => {
+		if (!config?.knowledgeSettings?.enabled || !config.knowledgeSettings.baseUrl) {
+			setManualRecordingError('请先在设置里启用项目知识库并填写后端 URL。')
+			return
+		}
+		setManualRecordingError('')
+		if (manualRecordingStatus !== 'recording') {
+			const result = await startManualRecording(inputValue.trim() || 'Manual workflow recording')
+			if (!result.ok) {
+				setManualRecordingError(result.error)
+				return
+			}
+			setPendingManualCandidate(null)
+			setManualRecordingStatus('recording')
+			return
+		}
+
+		setManualRecordingStatus('uploading')
+		const result = await stopManualRecording()
+		if (!result.ok || result.status !== 'stopped') {
+			setManualRecordingStatus('idle')
+			setManualRecordingError(!result.ok ? result.error : '录制停止失败。')
+			return
+		}
+		const uploader = new WorkflowCandidateUploader({
+			baseUrl: config.knowledgeSettings.baseUrl,
+			apiKey: config.knowledgeSettings.apiKey || undefined,
+		})
+		const upload = await uploader.uploadManualSession(result.session)
+		if (!upload.ok) {
+			setManualRecordingStatus('idle')
+			setManualRecordingError(upload.error)
+			return
+		}
+		setPendingManualCandidate(upload.candidate)
+		setManualRecordingStatus('idle')
+	}, [config?.knowledgeSettings, inputValue, manualRecordingStatus])
+
+	const handleApproveCandidate = useCallback(
+		async (candidate: WorkflowCandidateSummary) => {
+			if (!config?.knowledgeSettings?.baseUrl) return
+			setManualRecordingStatus('approving')
+			setManualRecordingError('')
+			const client = new WorkflowCandidateClient({
+				baseUrl: config.knowledgeSettings.baseUrl,
+				apiKey: config.knowledgeSettings.apiKey || undefined,
+			})
+			const result = await client.approve(candidate.id)
+			if (!result.ok) {
+				setManualRecordingStatus('idle')
+				setManualRecordingError(result.error)
+				return
+			}
+			setPendingManualCandidate(result.candidate)
+			setManualRecordingStatus('enabled')
+		},
+		[config?.knowledgeSettings]
+	)
 
 	const handleNewSession = useCallback(() => {
 		if (status === 'running') return
@@ -214,6 +301,27 @@ export default function App() {
 					新建会话
 				</Button>
 				<div className="flex items-center gap-1">
+					<Button
+						variant={manualRecordingStatus === 'recording' ? 'destructive' : 'ghost'}
+						size="icon-sm"
+						onClick={handleToggleRecording}
+						disabled={
+							isRunning ||
+							manualRecordingStatus === 'uploading' ||
+							manualRecordingStatus === 'approving'
+						}
+						className="cursor-pointer"
+						aria-label={
+							manualRecordingStatus === 'recording' ? 'Stop recording' : 'Start recording'
+						}
+						title={manualRecordingStatus === 'recording' ? '停止录制' : '开始录制'}
+					>
+						{manualRecordingStatus === 'recording' ? (
+							<Square className="size-3.5" />
+						) : (
+							<Circle className="size-3.5" />
+						)}
+					</Button>
 					<StatusDot status={status} />
 					<Button
 						variant="ghost"
@@ -253,6 +361,53 @@ export default function App() {
 				{/* History */}
 				<div ref={historyRef} className="flex-1 overflow-y-auto p-3 space-y-2">
 					{showEmptyState && <EmptyState />}
+
+					{manualRecordingStatus === 'recording' && (
+						<div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-950">
+							<div className="font-semibold">正在录制手动流程</div>
+							<div className="mt-1 text-red-700">
+								请在当前网页完成操作，然后点击顶部方形按钮停止。
+							</div>
+						</div>
+					)}
+
+					{(pendingManualCandidate || pendingWorkflowCandidate) && (
+						<div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950">
+							<div className="font-semibold">发现可复用 workflow</div>
+							<div className="mt-1 text-amber-700">
+								录制结果已保存为候选，确认启用后才会用于后续相似任务回放。
+							</div>
+							<div className="mt-2 flex items-center gap-2">
+								<Button
+									size="sm"
+									className="h-7 px-2 text-xs"
+									disabled={
+										manualRecordingStatus === 'approving' ||
+										Boolean((pendingManualCandidate ?? pendingWorkflowCandidate)?.searchable)
+									}
+									onClick={() => {
+										const candidate = pendingManualCandidate ?? pendingWorkflowCandidate
+										if (candidate) void handleApproveCandidate(candidate)
+									}}
+								>
+									{(pendingManualCandidate ?? pendingWorkflowCandidate)?.searchable
+										? '已启用'
+										: manualRecordingStatus === 'approving'
+											? '启用中'
+											: '确认启用'}
+								</Button>
+								<span className="text-[10px] text-amber-700">
+									ID: {(pendingManualCandidate ?? pendingWorkflowCandidate)?.id}
+								</span>
+							</div>
+						</div>
+					)}
+
+					{manualRecordingError && (
+						<div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-950">
+							{manualRecordingError}
+						</div>
+					)}
 
 					{history.map((event, index) => (
 						<EventCard key={index} event={event} />
