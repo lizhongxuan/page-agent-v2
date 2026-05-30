@@ -134,6 +134,56 @@ func TestPageStateInterruptAndRepairPointBuilders(t *testing.T) {
 	}
 }
 
+func TestWorkflowPointPayloadsKeepRepositoryIdentityWithoutFullRecipe(t *testing.T) {
+	recipe := sampleWorkflowRecipe()
+	cardPoint, err := BuildWorkflowCardPoint(WorkflowCardFromRecipe(recipe, nil))
+	if err != nil {
+		t.Fatalf("build card point failed: %v", err)
+	}
+	chunkPoints, err := BuildWorkflowChunkPoints(recipe)
+	if err != nil {
+		t.Fatalf("build chunk points failed: %v", err)
+	}
+	if cardPoint.Payload["workflow_id"] != recipe.ID || cardPoint.Payload["version"] != recipe.Version {
+		t.Fatalf("card point must carry repository identity, got %#v", cardPoint.Payload)
+	}
+	if chunkPoints[0].Payload["workflow_id"] != recipe.ID || chunkPoints[0].Payload["version"] != recipe.Version {
+		t.Fatalf("chunk point must carry repository identity, got %#v", chunkPoints[0].Payload)
+	}
+	for _, payload := range []map[string]any{cardPoint.Payload, chunkPoints[0].Payload} {
+		for _, forbidden := range []string{"recipe", "recipe_json", "steps", "variables", "value"} {
+			if _, ok := payload[forbidden]; ok {
+				t.Fatalf("payload should not contain full recipe field %q: %#v", forbidden, payload)
+			}
+		}
+		encoded := strings.ToLower(payloadText(payload))
+		for _, forbidden := range []string{"sk-1234567890", "secret-value", "token"} {
+			if strings.Contains(encoded, forbidden) {
+				t.Fatalf("payload should not contain sensitive value %q: %s", forbidden, encoded)
+			}
+		}
+	}
+}
+
+func payloadText(payload map[string]any) string {
+	parts := make([]string, 0, len(payload))
+	for key, value := range payload {
+		parts = append(parts, key, valueString(value))
+	}
+	return strings.Join(parts, "\n")
+}
+
+func valueString(value any) string {
+	switch typed := value.(type) {
+	case string:
+		return typed
+	case []string:
+		return strings.Join(typed, " ")
+	default:
+		return ""
+	}
+}
+
 func isUUIDPointID(value string) bool {
 	return len(value) == 36 &&
 		value[8] == '-' &&

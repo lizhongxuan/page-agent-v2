@@ -39,6 +39,37 @@ func TestValidateWorkflowRecipeRejectsDestructiveAutoWorkflow(t *testing.T) {
 	}
 }
 
+func TestValidateWorkflowRecipeRejectsOverlongDescriptions(t *testing.T) {
+	recipe := sampleWorkflowRecipe()
+	recipe.Description = repeated("a", 501)
+
+	err := ValidateWorkflowRecipe(recipe)
+
+	if err == nil {
+		t.Fatal("expected overlong description to fail")
+	}
+}
+
+func TestValidateWorkflowRecipeRejectsSearchableInstanceStepValue(t *testing.T) {
+	recipe := sampleWorkflowRecipe()
+	recipe.Chunks[0].Steps[0].Value = "kme-prod-001"
+
+	err := ValidateWorkflowRecipe(recipe)
+
+	if err == nil {
+		t.Fatal("expected searchable instance value to fail")
+	}
+}
+
+func TestValidateWorkflowRecipeAllowsTemplatedStepValue(t *testing.T) {
+	recipe := sampleWorkflowRecipe()
+	recipe.Chunks[0].Steps[0].Value = "{{service_name}}"
+
+	if err := ValidateWorkflowRecipe(recipe); err != nil {
+		t.Fatalf("expected templated step value to validate: %v", err)
+	}
+}
+
 func TestValidateWorkflowCardRejectsSensitiveToken(t *testing.T) {
 	card := WorkflowCard{
 		WorkflowID:  "wf_secret",
@@ -100,4 +131,12 @@ func sampleWorkflowRecipe() WorkflowRecipe {
 			},
 		},
 	}
+}
+
+func repeated(value string, count int) string {
+	result := ""
+	for i := 0; i < count; i++ {
+		result += value
+	}
+	return result
 }

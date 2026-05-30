@@ -36,6 +36,8 @@ package.json.bak
 .output
 .wxt
 test-results
+artifacts
+output
 
 # AI
 .claude

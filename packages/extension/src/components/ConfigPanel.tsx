@@ -26,6 +26,18 @@ interface ConfigPanelProps {
 	onClose: () => void
 }
 
+function workflowMemoryBaseUrl(config: ExtConfig | null): string {
+	return config?.workflowBackend?.baseUrl ?? config?.knowledgeSettings?.baseUrl ?? ''
+}
+
+function workflowMemoryProjectId(config: ExtConfig | null): string {
+	return config?.workflowBackend?.projectId ?? config?.knowledgeSettings?.projectKey ?? 'default'
+}
+
+function workflowMemoryApiKey(config: ExtConfig | null): string {
+	return config?.workflowBackend?.apiKey ?? config?.knowledgeSettings?.apiKey ?? ''
+}
+
 export function ConfigPanel({ config, onSave, onClose }: ConfigPanelProps) {
 	const [baseURL, setBaseURL] = useState(config?.baseURL || DEMO_BASE_URL)
 	const [model, setModel] = useState(config?.model || DEMO_MODEL)
@@ -45,14 +57,14 @@ export function ConfigPanel({ config, onSave, onClose }: ConfigPanelProps) {
 	const [knowledgeSettings, setKnowledgeSettings] = useState<KnowledgeSettings>(
 		config?.knowledgeSettings ?? defaultKnowledgeSettings
 	)
-	const [workflowBackendBaseUrl, setWorkflowBackendBaseUrl] = useState(
-		config?.workflowBackend?.baseUrl ?? ''
+	const [workflowBackendBaseUrl, setWorkflowBackendBaseUrl] = useState(() =>
+		workflowMemoryBaseUrl(config)
 	)
-	const [workflowBackendProjectId, setWorkflowBackendProjectId] = useState(
-		config?.workflowBackend?.projectId ?? 'default'
+	const [workflowBackendProjectId, setWorkflowBackendProjectId] = useState(() =>
+		workflowMemoryProjectId(config)
 	)
-	const [workflowBackendApiKey, setWorkflowBackendApiKey] = useState(
-		config?.workflowBackend?.apiKey ?? ''
+	const [workflowBackendApiKey, setWorkflowBackendApiKey] = useState(() =>
+		workflowMemoryApiKey(config)
 	)
 	const [advancedOpen, setAdvancedOpen] = useState(false)
 	const [saving, setSaving] = useState(false)
@@ -74,9 +86,9 @@ export function ConfigPanel({ config, onSave, onClose }: ConfigPanelProps) {
 		setExperimentalIncludeAllTabs(config?.experimentalIncludeAllTabs ?? false)
 		setDisableNamedToolChoice(config?.disableNamedToolChoice ?? false)
 		setKnowledgeSettings(config?.knowledgeSettings ?? defaultKnowledgeSettings)
-		setWorkflowBackendBaseUrl(config?.workflowBackend?.baseUrl ?? '')
-		setWorkflowBackendProjectId(config?.workflowBackend?.projectId ?? 'default')
-		setWorkflowBackendApiKey(config?.workflowBackend?.apiKey ?? '')
+		setWorkflowBackendBaseUrl(workflowMemoryBaseUrl(config))
+		setWorkflowBackendProjectId(workflowMemoryProjectId(config))
+		setWorkflowBackendApiKey(workflowMemoryApiKey(config))
 	}
 
 	// Poll for user auth token every second until found
@@ -114,6 +126,15 @@ export function ConfigPanel({ config, onSave, onClose }: ConfigPanelProps) {
 	const handleSave = async () => {
 		setSaving(true)
 		try {
+			const memoryBaseUrl = workflowBackendBaseUrl.trim()
+			const memoryProjectId = workflowBackendProjectId.trim() || 'default'
+			const memoryApiKey = workflowBackendApiKey.trim()
+			const sharedKnowledgeSettings: KnowledgeSettings = {
+				...knowledgeSettings,
+				baseUrl: memoryBaseUrl,
+				projectKey: memoryProjectId,
+				apiKey: memoryApiKey,
+			}
 			await onSave({
 				apiKey,
 				baseURL,
@@ -124,12 +145,12 @@ export function ConfigPanel({ config, onSave, onClose }: ConfigPanelProps) {
 				experimentalLlmsTxt,
 				experimentalIncludeAllTabs,
 				disableNamedToolChoice,
-				knowledgeSettings,
-				workflowBackend: workflowBackendBaseUrl.trim()
+				knowledgeSettings: sharedKnowledgeSettings,
+				workflowBackend: memoryBaseUrl
 					? {
-							baseUrl: workflowBackendBaseUrl.trim(),
-							projectId: workflowBackendProjectId.trim() || 'default',
-							apiKey: workflowBackendApiKey.trim() || undefined,
+							baseUrl: memoryBaseUrl,
+							projectId: memoryProjectId,
+							apiKey: memoryApiKey || undefined,
 						}
 					: undefined,
 			})
@@ -278,10 +299,7 @@ export function ConfigPanel({ config, onSave, onClose }: ConfigPanelProps) {
 
 			<div className="flex flex-col gap-2 p-3 rounded-md border bg-muted/30">
 				<div>
-					<div className="text-xs font-medium">Workflow Backend</div>
-					<p className="text-[10px] text-muted-foreground">
-						Enable Playwright workflow recording, retrieval, and replay.
-					</p>
+					<div className="text-xs font-medium">Workflow Memory Backend</div>
 				</div>
 				<Input
 					placeholder="http://127.0.0.1:38402"
@@ -302,16 +320,8 @@ export function ConfigPanel({ config, onSave, onClose }: ConfigPanelProps) {
 					onChange={(e) => setWorkflowBackendApiKey(e.target.value)}
 					className="text-xs h-8"
 				/>
-			</div>
-
-			<div className="flex flex-col gap-2 p-3 rounded-md border bg-muted/30">
 				<div className="flex items-center justify-between gap-3">
-					<div>
-						<div className="text-xs font-medium">项目知识库</div>
-						<p className="text-[10px] text-muted-foreground">
-							让 Agent 操作项目页面前读取相关文档。
-						</p>
-					</div>
+					<div className="text-xs font-medium">项目知识库</div>
 					<Switch
 						checked={knowledgeSettings.enabled}
 						onCheckedChange={(enabled) =>
@@ -319,31 +329,6 @@ export function ConfigPanel({ config, onSave, onClose }: ConfigPanelProps) {
 						}
 					/>
 				</div>
-				<Input
-					placeholder="Knowledge Base URL"
-					value={knowledgeSettings.baseUrl}
-					onChange={(e) =>
-						setKnowledgeSettings((current) => ({ ...current, baseUrl: e.target.value }))
-					}
-					className="text-xs h-8"
-				/>
-				<Input
-					placeholder="Project Key"
-					value={knowledgeSettings.projectKey}
-					onChange={(e) =>
-						setKnowledgeSettings((current) => ({ ...current, projectKey: e.target.value }))
-					}
-					className="text-xs h-8"
-				/>
-				<Input
-					type="password"
-					placeholder="Knowledge API Key"
-					value={knowledgeSettings.apiKey}
-					onChange={(e) =>
-						setKnowledgeSettings((current) => ({ ...current, apiKey: e.target.value }))
-					}
-					className="text-xs h-8"
-				/>
 				<label className="flex items-center justify-between cursor-pointer">
 					<span className="text-xs text-muted-foreground">允许发送页面摘要</span>
 					<Switch

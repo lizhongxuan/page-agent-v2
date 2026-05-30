@@ -1,11 +1,6 @@
 /**
  * background logics for TabsController
  */
-import {
-	WORKFLOW_TARGET_TAB_STORAGE_KEY,
-	findRecordableTab,
-	selectRecordableTab,
-} from '../webops/recorder/recordingTabs'
 import type { TabAction } from './TabsController'
 
 const PREFIX = '[TabsController.background]'
@@ -25,19 +20,11 @@ export function handleTabControlMessage(
 			Promise.all([
 				chrome.tabs.query({ active: true, currentWindow: true }),
 				chrome.tabs.query({ active: true }),
-				chrome.tabs.query({}),
-				chrome.storage.local.get(WORKFLOW_TARGET_TAB_STORAGE_KEY),
 			])
-				.then(([currentWindowActiveTabs, activeTabs, allTabs, stored]) => {
-					const extensionOrigin = chrome.runtime.getURL('')
+				.then(([currentWindowActiveTabs, activeTabs]) => {
 					const tab =
-						findRecordableTab(currentWindowActiveTabs, extensionOrigin) ??
-						selectRecordableTab(
-							activeTabs,
-							allTabs,
-							extensionOrigin,
-							stored[WORKFLOW_TARGET_TAB_STORAGE_KEY] as number | undefined
-						) ??
+						[...currentWindowActiveTabs, ...activeTabs].find(isControllableTab) ??
+						currentWindowActiveTabs[0] ??
 						activeTabs[0]
 					debug('get_active_tab: success', tab)
 					sendResponse({ success: true, tab })
@@ -147,6 +134,10 @@ export function handleTabControlMessage(
 			sendResponse({ error: `Unknown action: ${action}` })
 			return
 	}
+}
+
+function isControllableTab(tab: chrome.tabs.Tab | undefined): boolean {
+	return Boolean(tab?.id && tab.url && /^https?:\/\//.test(tab.url))
 }
 
 const tabEventPorts = new Set<chrome.runtime.Port>()

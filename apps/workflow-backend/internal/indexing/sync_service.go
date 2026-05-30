@@ -55,7 +55,7 @@ func (service *SyncService) HandleEvent(ctx context.Context, event registry.Outb
 	}
 	var err error
 	switch event.Type {
-	case "workflow_approved", "workflow_version_created":
+	case EventWorkflowApproved, EventWorkflowVersionCreated, EventWorkflowRolledBack:
 		err = service.indexWorkflow(ctx, event)
 	case "run_stats_updated":
 		err = service.patchWorkflowRunStats(ctx, event)
@@ -175,7 +175,7 @@ func (service *SyncService) IndexWorkflow(ctx context.Context, workflowID string
 	if err != nil {
 		return err
 	}
-	return service.indexRecipe(ctx, recipe)
+	return service.indexRecipe(ctx, recipe, true)
 }
 
 func (service *SyncService) Rebuild(ctx context.Context, projectID string) (int, error) {
@@ -183,12 +183,28 @@ func (service *SyncService) Rebuild(ctx context.Context, projectID string) (int,
 	if err != nil {
 		return 0, err
 	}
+	if err := service.clearRebuildCollections(ctx, projectID); err != nil {
+		return 0, err
+	}
 	for _, workflow := range workflows {
-		if err := service.indexRecipe(ctx, workflow); err != nil {
+		if err := service.indexRecipe(ctx, workflow, false); err != nil {
 			return 0, err
 		}
 	}
 	return len(workflows), nil
+}
+
+func (service *SyncService) clearRebuildCollections(ctx context.Context, projectID string) error {
+	filter := projectFilter(projectID)
+	for _, collection := range []string{service.collections.WorkflowCards, service.collections.WorkflowChunks, service.collections.PageStates} {
+		if collection == "" {
+			continue
+		}
+		if err := service.writer.DeleteByFilter(ctx, collection, filter); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (service *SyncService) indexWorkflow(ctx context.Context, event registry.OutboxEvent) error {
@@ -200,10 +216,15 @@ func (service *SyncService) indexWorkflow(ctx context.Context, event registry.Ou
 	if err != nil {
 		return err
 	}
-	return service.indexRecipe(ctx, recipe)
+	return service.indexRecipe(ctx, recipe, true)
 }
 
-func (service *SyncService) indexRecipe(ctx context.Context, recipe registry.WorkflowRecipe) error {
+func (service *SyncService) indexRecipe(ctx context.Context, recipe registry.WorkflowRecipe, clearPrevious bool) error {
+	if clearPrevious {
+		if err := service.deleteWorkflowPoints(ctx, recipe.ID); err != nil {
+			return fmt.Errorf("clear previous workflow points: %w", err)
+		}
+	}
 	cardPoint, err := qdrant.BuildWorkflowCardPoint(qdrant.WorkflowCardFromRecipe(recipe, nil))
 	if err != nil {
 		return err
@@ -270,6 +291,10 @@ func (service *SyncService) deleteWorkflow(ctx context.Context, event registry.O
 	if workflowID == "" {
 		return errors.New("workflow id is required for delete")
 	}
+	return service.deleteWorkflowPoints(ctx, workflowID)
+}
+
+func (service *SyncService) deleteWorkflowPoints(ctx context.Context, workflowID string) error {
 	filter := qdrant.Filter{Must: []qdrant.Condition{{Key: "workflow_id", Match: map[string]any{"value": workflowID}}}}
 	for _, collection := range []string{service.collections.WorkflowCards, service.collections.WorkflowChunks} {
 		if collection == "" {
@@ -368,6 +393,13 @@ func workflowVersionFilter(workflowID string, version int, chunkID string) qdran
 		conditions = append(conditions, qdrant.Condition{Key: "chunk_id", Match: map[string]any{"value": chunkID}})
 	}
 	return qdrant.Filter{Must: conditions}
+}
+
+func projectFilter(projectID string) qdrant.Filter {
+	if projectID == "" {
+		return qdrant.Filter{}
+	}
+	return qdrant.Filter{Must: []qdrant.Condition{{Key: "project_id", Match: map[string]any{"value": projectID}}}}
 }
 
 func payloadVersion(event registry.OutboxEvent) int {

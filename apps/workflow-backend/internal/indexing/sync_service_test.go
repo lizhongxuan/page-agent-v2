@@ -52,6 +52,46 @@ func TestSyncWorkflowApprovedUpsertsWorkflowPoints(t *testing.T) {
 	}
 }
 
+func TestSyncWorkflowApprovedClearsPreviousWorkflowVersionsBeforeUpsert(t *testing.T) {
+	ctx := context.Background()
+	repo, err := registry.NewFileRepository(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewFileRepository failed: %v", err)
+	}
+	recipe := sampleIndexWorkflow()
+	recipe.Version = 4
+	if err := repo.SaveWorkflow(ctx, recipe); err != nil {
+		t.Fatalf("SaveWorkflow failed: %v", err)
+	}
+	writer := &fakePointWriter{}
+	service := NewSyncService(repo, writer, qdrant.CollectionNames{
+		WorkflowCards:  "pa_workflow_cards",
+		WorkflowChunks: "pa_workflow_chunks",
+	})
+
+	if err := service.HandleEvent(ctx, registry.OutboxEvent{
+		Type: EventWorkflowApproved,
+		Payload: map[string]any{
+			"workflowId": recipe.ID,
+			"version":    recipe.Version,
+		},
+	}); err != nil {
+		t.Fatalf("HandleEvent failed: %v", err)
+	}
+
+	if len(writer.deleted) != 2 {
+		t.Fatalf("expected prior workflow card and chunk points to be cleared, got %#v", writer.deleted)
+	}
+	for _, deleted := range writer.deleted {
+		if !filterHasMatch(deleted.filter, "workflow_id", recipe.ID) {
+			t.Fatalf("expected workflow-scoped delete filter, got %#v", deleted.filter)
+		}
+	}
+	if writer.upserts["pa_workflow_cards"][0].Payload["version"] != recipe.Version {
+		t.Fatalf("expected current version point upsert, got %#v", writer.upserts["pa_workflow_cards"][0])
+	}
+}
+
 func TestSyncWorkflowApprovedAttachesVectorsWhenVectorizerConfigured(t *testing.T) {
 	ctx := context.Background()
 	repo, err := registry.NewFileRepository(t.TempDir())
@@ -131,6 +171,40 @@ func TestRebuildIndexesActiveProjectWorkflows(t *testing.T) {
 	}
 	if len(writer.upserts["pa_workflow_cards"]) != 1 {
 		t.Fatalf("expected one workflow card, got %#v", writer.upserts["pa_workflow_cards"])
+	}
+}
+
+func TestRebuildClearsProjectScopedWorkflowCollectionsBeforeUpsert(t *testing.T) {
+	ctx := context.Background()
+	repo, err := registry.NewFileRepository(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewFileRepository failed: %v", err)
+	}
+	recipe := sampleIndexWorkflow()
+	if err := repo.SaveWorkflow(ctx, recipe); err != nil {
+		t.Fatalf("SaveWorkflow failed: %v", err)
+	}
+	writer := &fakePointWriter{}
+	service := NewSyncService(repo, writer, qdrant.CollectionNames{
+		WorkflowCards:  "pa_workflow_cards",
+		WorkflowChunks: "pa_workflow_chunks",
+		PageStates:     "pa_page_states",
+	})
+
+	if _, err := service.Rebuild(ctx, "default"); err != nil {
+		t.Fatalf("Rebuild failed: %v", err)
+	}
+
+	if len(writer.deleted) != 3 {
+		t.Fatalf("expected rebuild to clear cards, chunks, and page states, got %#v", writer.deleted)
+	}
+	for _, deleted := range writer.deleted {
+		if !filterHasProject(deleted.filter, "default") {
+			t.Fatalf("expected project-scoped delete filter, got %#v", deleted.filter)
+		}
+	}
+	if len(writer.upserts["pa_workflow_cards"]) != 1 {
+		t.Fatalf("expected workflow cards to be rebuilt after delete, got %#v", writer.upserts)
 	}
 }
 
@@ -490,8 +564,13 @@ func TestHandleEventIsIdempotentForRepairPatchApproved(t *testing.T) {
 
 type fakePointWriter struct {
 	upserts map[string][]qdrant.Point
-	deleted []string
+	deleted []fakeDeleteCall
 	patches []fakePayloadPatch
+}
+
+type fakeDeleteCall struct {
+	collection string
+	filter     qdrant.Filter
 }
 
 type fakePayloadPatch struct {
@@ -543,8 +622,8 @@ func (writer *fakePointWriter) UpsertPoints(_ context.Context, collection string
 	return nil
 }
 
-func (writer *fakePointWriter) DeleteByFilter(_ context.Context, collection string, _ qdrant.Filter) error {
-	writer.deleted = append(writer.deleted, collection)
+func (writer *fakePointWriter) DeleteByFilter(_ context.Context, collection string, filter qdrant.Filter) error {
+	writer.deleted = append(writer.deleted, fakeDeleteCall{collection: collection, filter: filter})
 	return nil
 }
 
@@ -564,6 +643,24 @@ func (fakeIndexVectorizer) SparseQuery(context.Context, string) (map[string]any,
 		"indices": []uint32{1},
 		"values":  []float32{0.5},
 	}, nil
+}
+
+func filterHasProject(filter qdrant.Filter, projectID string) bool {
+	for _, condition := range filter.Must {
+		if condition.Key == "project_id" && condition.Match["value"] == projectID {
+			return true
+		}
+	}
+	return false
+}
+
+func filterHasMatch(filter qdrant.Filter, key string, value string) bool {
+	for _, condition := range filter.Must {
+		if condition.Key == key && condition.Match["value"] == value {
+			return true
+		}
+	}
+	return false
 }
 
 func sampleIndexWorkflow() registry.WorkflowRecipe {

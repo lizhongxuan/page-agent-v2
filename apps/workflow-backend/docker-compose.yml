@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: page-agent-workflow-postgres
+    environment:
+      POSTGRES_DB: page_agent_workflow
+      POSTGRES_USER: page_agent
+      POSTGRES_PASSWORD: page_agent_dev
+    ports:
+      - "54329:5432"
+    volumes:
+      - workflow-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U page_agent -d page_agent_workflow"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  workflow-postgres-data:

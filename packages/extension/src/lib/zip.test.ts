@@ -5,8 +5,8 @@ import { createZipBlob } from './zip'
 describe('createZipBlob', () => {
 	it('creates a zip archive with local, central, and end directory records', async () => {
 		const blob = createZipBlob({
-			'package.json': '{"scripts":{"test":"playwright test"}}',
-			'tests/replay.spec.ts': 'test("replay", async () => {})',
+			'package.json': '{"scripts":{"test":"vitest run"}}',
+			'tests/archive.spec.ts': 'test("archive", async () => {})',
 		})
 		const bytes = new Uint8Array(await blob.arrayBuffer())
 		const view = new DataView(bytes.buffer)
@@ -15,7 +15,7 @@ describe('createZipBlob', () => {
 		expect(view.getUint32(0, true)).toBe(0x04034b50)
 		expect(findSignature(bytes, [0x50, 0x4b, 0x01, 0x02])).toBeGreaterThan(0)
 		expect(findSignature(bytes, [0x50, 0x4b, 0x05, 0x06])).toBeGreaterThan(0)
-		expect(new TextDecoder().decode(bytes)).toContain('tests/replay.spec.ts')
+		expect(new TextDecoder().decode(bytes)).toContain('tests/archive.spec.ts')
 	})
 })
 

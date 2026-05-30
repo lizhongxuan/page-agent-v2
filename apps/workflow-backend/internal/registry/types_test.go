@@ -1,6 +1,10 @@
 package registry
 
-import "testing"
+import (
+	"encoding/json"
+	"strings"
+	"testing"
+)
 
 func TestStatusAndRiskConstants(t *testing.T) {
 	if StatusPendingReview != "pending_review" || StatusIndexed != "indexed" {
@@ -36,5 +40,175 @@ func TestWorkflowCardEmbeddingTextOmitsSensitiveFields(t *testing.T) {
 	}
 	if containsSensitiveText(text) {
 		t.Fatalf("embedding text should not contain sensitive material: %s", text)
+	}
+}
+
+func TestValidateSummaryLength(t *testing.T) {
+	if err := ValidateSummaryLength("short summary"); err != nil {
+		t.Fatalf("short summary should be valid: %v", err)
+	}
+	long := ""
+	for i := 0; i < 501; i++ {
+		long += "a"
+	}
+	if err := ValidateSummaryLength(long); err == nil {
+		t.Fatal("expected overlong summary to be rejected")
+	}
+}
+
+func TestTaskRunCarriesOriginalAndOptimizedPaths(t *testing.T) {
+	run := TaskRun{
+		ID:            "task_run_1",
+		ProjectID:     "default",
+		Site:          "ops.example.com",
+		TaskTemplate:  "查看 {{service_name}} 运行状态",
+		Summary:       "查看服务运行状态。",
+		OriginalPath:  []string{"page_a", "page_b", "page_c", "page_a", "page_d"},
+		OptimizedPath: []string{"page_a", "page_d"},
+		Status:        TaskRunSuccess,
+		ActionSteps: []ActionStep{
+			{
+				ID:               "step_1",
+				PageStateID:      "page_a",
+				StepIndex:        1,
+				ActionType:       "fill",
+				TargetName:       "服务名称搜索框",
+				ValueTemplate:    "{{service_name}}",
+				ReasoningSummary: "使用固定搜索框定位服务。",
+				ResultSummary:    "搜索已提交。",
+			},
+		},
+	}
+
+	if len(run.OriginalPath) != 5 || len(run.OptimizedPath) != 2 {
+		t.Fatalf("unexpected paths on task run: %#v", run)
+	}
+	if run.ActionSteps[0].ValueTemplate != "{{service_name}}" {
+		t.Fatalf("expected action step to store a value template, got %#v", run.ActionSteps[0])
+	}
+}
+
+func TestMemoryV2TypesValidateSummariesAndSearchableText(t *testing.T) {
+	profile := BusinessSystemProfile{
+		ProjectID: "default",
+		Site:      "ops.example.com",
+		Summary:   "Service operations system for querying service health and ownership.",
+		Modules: []BusinessModule{
+			{
+				Name:             "Service Management",
+				Purpose:          "Query service status and owner.",
+				EntryPageStateID: "page_service_list",
+			},
+		},
+		Terms: map[string]string{"service status": "Current health state."},
+	}
+	if err := ValidateMemoryRecord(profile); err != nil {
+		t.Fatalf("expected profile to validate: %v", err)
+	}
+
+	experience := ExperienceMemory{
+		ID:             "exp_service_status",
+		ProjectID:      "default",
+		Site:           "ops.example.com",
+		TaskTemplate:   "Check {{service_name}} status",
+		Intent:         "Check service status",
+		Summary:        "Open service list and inspect the matching service.",
+		StartPageState: "service-list_d7c302ab",
+		EndPageState:   "service-detail_8f9012ef",
+		OptimizedPath:  []string{"service-list_d7c302ab", "service-detail_8f9012ef"},
+		StepsSummary: []ExperienceStepSummary{
+			{ActionName: "Search service", TargetName: "Service search input", ValueTemplate: "{{service_name}}"},
+		},
+		Variables:    []Variable{{Name: "service_name", Type: VariableString, Required: true, Source: VariableSourceTask}},
+		Searchable:   true,
+		ReviewStatus: ReviewStatusAutoApproved,
+	}
+	if err := ValidateMemoryRecord(experience); err != nil {
+		t.Fatalf("expected experience to validate: %v", err)
+	}
+	if text := experience.SearchableText(); containsSensitiveText(text) ||
+		strings.Contains(text, "kme-prod-001") ||
+		strings.Contains(text, "service-list_d7c302ab") ||
+		strings.Contains(text, "service-detail_8f9012ef") {
+		t.Fatalf("searchable text should only contain templates and safe labels: %s", text)
+	}
+
+	experience.Summary = repeated("x", 501)
+	if err := ValidateMemoryRecord(experience); err == nil {
+		t.Fatal("expected overlong experience summary to fail")
+	}
+	experience.Summary = "Use token=secret-value to authenticate."
+	if err := ValidateMemoryRecord(experience); err == nil {
+		t.Fatal("expected sensitive experience summary to fail")
+	}
+}
+
+func TestMemoryAttributionLabelConstantsStable(t *testing.T) {
+	if MemoryEvidenceSourceKnowledge != "knowledge" ||
+		MemoryEvidenceSourceExperience != "experience" ||
+		MemoryEvidenceSourceFailure != "failure" ||
+		MemoryEvidenceSourceNavigation != "navigation" {
+		t.Fatalf("unexpected memory evidence source constants: %q %q %q %q",
+			MemoryEvidenceSourceKnowledge,
+			MemoryEvidenceSourceExperience,
+			MemoryEvidenceSourceFailure,
+			MemoryEvidenceSourceNavigation,
+		)
+	}
+	if MemoryAttributionHelpful != "helpful" ||
+		MemoryAttributionUnused != "unused" ||
+		MemoryAttributionMisleading != "misleading" ||
+		MemoryAttributionStale != "stale" ||
+		MemoryAttributionNeutral != "neutral" {
+		t.Fatalf("unexpected memory attribution label constants: %q %q %q %q %q",
+			MemoryAttributionHelpful,
+			MemoryAttributionUnused,
+			MemoryAttributionMisleading,
+			MemoryAttributionStale,
+			MemoryAttributionNeutral,
+		)
+	}
+}
+
+func TestMemoryEvidenceStatsJSONFieldNames(t *testing.T) {
+	stats := MemoryEvidenceStats{
+		ProjectID:       "default",
+		Site:            "ops.example.com",
+		EvidenceID:      "exp_service_status",
+		EvidenceSource:  MemoryEvidenceSourceExperience,
+		HelpfulCount:    3,
+		UnusedCount:     1,
+		MisleadingCount: 2,
+		StaleCount:      1,
+		NeutralCount:    4,
+		UtilityScore:    0.75,
+	}
+
+	payload, err := json.Marshal(stats)
+	if err != nil {
+		t.Fatalf("Marshal failed: %v", err)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(payload, &got); err != nil {
+		t.Fatalf("Unmarshal failed: %v", err)
+	}
+
+	expected := []string{
+		"projectId",
+		"site",
+		"evidenceId",
+		"evidenceSource",
+		"helpfulCount",
+		"unusedCount",
+		"misleadingCount",
+		"staleCount",
+		"neutralCount",
+		"utilityScore",
+		"lastFeedbackAt",
+	}
+	for _, key := range expected {
+		if _, ok := got[key]; !ok {
+			t.Fatalf("expected JSON key %q in %s", key, string(payload))
+		}
 	}
 }

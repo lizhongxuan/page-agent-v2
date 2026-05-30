@@ -2,27 +2,93 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ACTION="${1:-start}"
+ENV_FILE="${PAGE_AGENT_ENV_FILE:-$ROOT_DIR/.env.local}"
+
+if [[ -f "$ENV_FILE" ]]; then
+	set -a
+	# shellcheck disable=SC1090
+	source "$ENV_FILE"
+	set +a
+fi
 
 RUNTIME_DIR="${PAGE_AGENT_RUNTIME_DIR:-$HOME/.page-agent/runtime}"
-QDRANT_CONTAINER_NAME="${QDRANT_CONTAINER_NAME:-page-agent-qdrant}"
-QDRANT_STORAGE_DIR="${QDRANT_STORAGE_DIR:-$HOME/.page-agent/qdrant}"
-QDRANT_HTTP_PORT="${QDRANT_HTTP_PORT:-6333}"
-QDRANT_GRPC_PORT="${QDRANT_GRPC_PORT:-6334}"
 WORKFLOW_BACKEND_ADDR="${WORKFLOW_BACKEND_ADDR:-127.0.0.1:38402}"
+WORKFLOW_BACKEND_PORT="${WORKFLOW_BACKEND_ADDR##*:}"
 WORKFLOW_DATA_DIR="${WORKFLOW_DATA_DIR:-$HOME/.page-agent/workflow-backend}"
-QDRANT_COLLECTION_PREFIX="${QDRANT_COLLECTION_PREFIX:-pa}"
+
+POSTGRES_CONTAINER_NAME="${POSTGRES_CONTAINER_NAME:-page-agent-workflow-postgres}"
+POSTGRES_DATA_DIR="${POSTGRES_DATA_DIR:-$HOME/.page-agent/postgres}"
+POSTGRES_PORT="${POSTGRES_PORT:-54329}"
+POSTGRES_DB="${POSTGRES_DB:-page_agent_workflow}"
+POSTGRES_USER="${POSTGRES_USER:-page_agent}"
+POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-page_agent_dev}"
+WORKFLOW_POSTGRES_URL="postgres://$POSTGRES_USER:$POSTGRES_PASSWORD@127.0.0.1:$POSTGRES_PORT/$POSTGRES_DB?sslmode=disable"
+
 BACKEND_BIN="$RUNTIME_DIR/workflow-backend"
 BACKEND_PID_FILE="$RUNTIME_DIR/workflow-backend.pid"
 BACKEND_LOG="$RUNTIME_DIR/workflow-backend.log"
 
-mkdir -p "$RUNTIME_DIR" "$QDRANT_STORAGE_DIR" "$WORKFLOW_DATA_DIR"
+mkdir -p "$RUNTIME_DIR" "$WORKFLOW_DATA_DIR" "$POSTGRES_DATA_DIR"
 
 require_command() {
-	if ! command -v "$1" >/dev/null 2>&1; then
-		echo "Missing required command: $1" >&2
+	local name="$1"
+	if ! command -v "$name" >/dev/null 2>&1; then
+		echo "Missing required command: $name" >&2
 		exit 1
 	fi
+}
+
+stop_docker_container_by_name() {
+	local name="$1"
+	if docker ps -a --format '{{.Names}}' | grep -Fx "$name" >/dev/null 2>&1; then
+		echo "Removing existing Docker container: $name"
+		docker rm -f "$name" >/dev/null 2>&1 || true
+	fi
+}
+
+stop_docker_containers_on_port() {
+	local port="$1"
+	local containers
+	containers="$(
+		docker ps --format '{{.ID}} {{.Ports}}' |
+			awk -v port=":$port->" 'index($0, port) > 0 {print $1}'
+	)"
+	if [[ -z "$containers" ]]; then
+		return
+	fi
+	echo "Removing Docker container(s) using port $port: $containers"
+	docker rm -f $containers >/dev/null 2>&1 || true
+}
+
+close_port() {
+	local port="$1"
+	local label="$2"
+	local pids
+	pids="$(lsof -nP -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null | sort -u || true)"
+	if [[ -z "$pids" ]]; then
+		return
+	fi
+
+	echo "Closing $label listener(s) on port $port: $pids"
+	kill $pids >/dev/null 2>&1 || true
+	for _ in $(seq 1 30); do
+		if ! lsof -nP -tiTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
+			return
+		fi
+		sleep 0.2
+	done
+
+	echo "Force closing $label listener(s) on port $port: $pids"
+	kill -9 $pids >/dev/null 2>&1 || true
+	for _ in $(seq 1 15); do
+		if ! lsof -nP -tiTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
+			return
+		fi
+		sleep 0.2
+	done
+
+	echo "Port $port is still occupied; cannot start $label." >&2
+	exit 1
 }
 
 wait_for_url() {
@@ -31,50 +97,64 @@ wait_for_url() {
 	for _ in $(seq 1 90); do
 		if curl --noproxy '*' -fsS "$url" >/dev/null 2>&1; then
 			echo "$label ready: $url"
-			return 0
+			return
 		fi
 		sleep 1
 	done
 	echo "$label did not become ready: $url" >&2
-	return 1
+	echo "Backend log: $BACKEND_LOG" >&2
+	exit 1
 }
 
-pid_is_running() {
-	if [[ -f "$BACKEND_PID_FILE" ]] && kill -0 "$(cat "$BACKEND_PID_FILE")" >/dev/null 2>&1; then
-		return 0
-	fi
-	backend_listener_pid >/dev/null
+extension_version() {
+	node -e "const fs=require('fs'); const pkg=JSON.parse(fs.readFileSync(process.argv[1], 'utf8')); process.stdout.write(pkg.version)" "$ROOT_DIR/packages/extension/package.json"
 }
 
-backend_listener_pid() {
-	local port="${WORKFLOW_BACKEND_ADDR##*:}"
-	if command -v lsof >/dev/null 2>&1; then
-		lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null | head -1
-	fi
+extension_archive_name() {
+	echo "page-agent-ext-$(extension_version)-chrome"
 }
 
-start_qdrant() {
-	require_command docker
-	if docker ps --format '{{.Names}}' | grep -Fx "$QDRANT_CONTAINER_NAME" >/dev/null; then
-		echo "Qdrant already running: $QDRANT_CONTAINER_NAME"
-	else
-		if docker ps -a --format '{{.Names}}' | grep -Fx "$QDRANT_CONTAINER_NAME" >/dev/null; then
-			docker start "$QDRANT_CONTAINER_NAME" >/dev/null
-		else
-			docker run -d \
-				--name "$QDRANT_CONTAINER_NAME" \
-				--restart unless-stopped \
-				-p "127.0.0.1:$QDRANT_HTTP_PORT:6333" \
-				-p "127.0.0.1:$QDRANT_GRPC_PORT:6334" \
-				-v "$QDRANT_STORAGE_DIR:/qdrant/storage" \
-				qdrant/qdrant:latest >/dev/null
+extension_unpacked_path() {
+	echo "$HOME/Desktop/$(extension_archive_name)"
+}
+
+extension_zip_path() {
+	echo "$HOME/Desktop/$(extension_archive_name).zip"
+}
+
+prepare_ports() {
+	stop_docker_container_by_name "$POSTGRES_CONTAINER_NAME"
+	stop_docker_containers_on_port "$POSTGRES_PORT"
+	stop_docker_containers_on_port "$WORKFLOW_BACKEND_PORT"
+	close_port "$POSTGRES_PORT" "PostgreSQL"
+	close_port "$WORKFLOW_BACKEND_PORT" "workflow backend"
+	rm -f "$BACKEND_PID_FILE"
+}
+
+start_postgres() {
+	docker run -d \
+		--name "$POSTGRES_CONTAINER_NAME" \
+		--restart unless-stopped \
+		-e POSTGRES_DB="$POSTGRES_DB" \
+		-e POSTGRES_USER="$POSTGRES_USER" \
+		-e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+		-p "127.0.0.1:$POSTGRES_PORT:5432" \
+		-v "$POSTGRES_DATA_DIR:/var/lib/postgresql/data" \
+		pgvector/pgvector:pg17 >/dev/null
+
+	for _ in $(seq 1 90); do
+		if docker exec "$POSTGRES_CONTAINER_NAME" pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB" >/dev/null 2>&1; then
+			echo "PostgreSQL ready: 127.0.0.1:$POSTGRES_PORT"
+			return
 		fi
-	fi
-	wait_for_url "http://127.0.0.1:$QDRANT_HTTP_PORT/" "Qdrant"
+		sleep 1
+	done
+
+	echo "PostgreSQL did not become ready on 127.0.0.1:$POSTGRES_PORT" >&2
+	exit 1
 }
 
 build_backend() {
-	require_command go
 	(
 		cd "$ROOT_DIR/apps/workflow-backend"
 		go build -o "$BACKEND_BIN" ./cmd/server
@@ -83,15 +163,11 @@ build_backend() {
 }
 
 start_backend() {
-	if pid_is_running; then
-		echo "Workflow backend already running with PID $(backend_listener_pid || cat "$BACKEND_PID_FILE")"
-		return
-	fi
 	WORKFLOW_BACKEND_ADDR="$WORKFLOW_BACKEND_ADDR" \
 		WORKFLOW_DATA_DIR="$WORKFLOW_DATA_DIR" \
-		QDRANT_URL="http://127.0.0.1:$QDRANT_HTTP_PORT" \
-		QDRANT_GRPC_URL="127.0.0.1:$QDRANT_GRPC_PORT" \
-		QDRANT_COLLECTION_PREFIX="$QDRANT_COLLECTION_PREFIX" \
+		WORKFLOW_STORAGE_BACKEND=postgres \
+		WORKFLOW_POSTGRES_URL="$WORKFLOW_POSTGRES_URL" \
+		WORKFLOW_DISABLE_QDRANT=true \
 		LLM_BASE_URL="${LLM_BASE_URL:-}" \
 		LLM_API_KEY="${LLM_API_KEY:-}" \
 		LLM_MODEL="${LLM_MODEL:-gpt-5.4}" \
@@ -108,71 +184,53 @@ start_backend() {
 }
 
 build_extension() {
-	if [[ "${BUILD_EXTENSION:-1}" == "0" ]]; then
-		return
-	fi
-	require_command npm
 	(
 		cd "$ROOT_DIR"
 		npm run build:ext:desktop
 	)
 }
 
-start_stack() {
-	require_command curl
-	start_qdrant
-	build_backend
-	start_backend
-	build_extension
-	echo "Workflow backend URL: http://$WORKFLOW_BACKEND_ADDR"
-	echo "Qdrant URL: http://127.0.0.1:$QDRANT_HTTP_PORT"
-	echo "Backend log: $BACKEND_LOG"
+print_summary() {
+	echo
+	echo "Local Page Agent workflow memory is running."
+	echo
+	echo "Backend:"
+	echo "- URL: http://$WORKFLOW_BACKEND_ADDR"
+	echo "- Port: $WORKFLOW_BACKEND_PORT"
+	echo "- Health: http://$WORKFLOW_BACKEND_ADDR/health"
+	echo "- Ready: http://$WORKFLOW_BACKEND_ADDR/ready"
+	echo "- Inspector: http://$WORKFLOW_BACKEND_ADDR/api/memory/inspector?projectId=default"
+	echo "- Log: $BACKEND_LOG"
+	echo
+	echo "Database:"
+	echo "- PostgreSQL: 127.0.0.1:$POSTGRES_PORT"
+	echo "- Container: $POSTGRES_CONTAINER_NAME"
+	echo "- Data: $POSTGRES_DATA_DIR"
+	echo
+	echo "Chrome extension:"
+	echo "- Load unpacked path: $(extension_unpacked_path)"
+	echo "- Zip package: $(extension_zip_path)"
+	echo
+	echo "Extension settings:"
+	echo "- Workflow Memory Backend: http://$WORKFLOW_BACKEND_ADDR"
+	echo "- Project ID: default"
+	echo "- API Key: leave empty for local backend"
+	echo
+	if [[ -z "${LLM_API_KEY:-}" ]]; then
+		echo "LLM_API_KEY is not set. To enable LLM-backed summaries, put it in $ENV_FILE or export it before running this script."
+	fi
 }
 
-stop_stack() {
-	if pid_is_running; then
-		kill "$(cat "$BACKEND_PID_FILE")" >/dev/null 2>&1 || true
-		rm -f "$BACKEND_PID_FILE"
-		echo "Stopped workflow backend."
-	else
-		echo "Workflow backend is not running."
-	fi
-	if [[ "${STOP_QDRANT:-1}" == "1" ]]; then
-		docker stop "$QDRANT_CONTAINER_NAME" >/dev/null 2>&1 || true
-		echo "Stopped Qdrant container: $QDRANT_CONTAINER_NAME"
-	fi
-}
+require_command docker
+require_command go
+require_command npm
+require_command node
+require_command curl
+require_command lsof
 
-status_stack() {
-	if pid_is_running; then
-		echo "Workflow backend: running PID $(backend_listener_pid || cat "$BACKEND_PID_FILE")"
-	else
-		echo "Workflow backend: stopped"
-	fi
-	docker ps --format '{{.Names}}' | grep -Fx "$QDRANT_CONTAINER_NAME" >/dev/null 2>&1 \
-		&& echo "Qdrant: running ($QDRANT_CONTAINER_NAME)" \
-		|| echo "Qdrant: stopped ($QDRANT_CONTAINER_NAME)"
-	curl --noproxy '*' -fsS "http://$WORKFLOW_BACKEND_ADDR/health" >/dev/null 2>&1 \
-		&& echo "Backend health: ok" \
-		|| echo "Backend health: unavailable"
-}
-
-case "$ACTION" in
-	start)
-		start_stack
-		;;
-	stop)
-		stop_stack
-		;;
-	restart)
-		stop_stack
-		start_stack
-		;;
-	status)
-		status_stack
-		;;
-	*)
-		echo "Usage: $0 {start|stop|restart|status}" >&2
-		exit 1
-		;;
-esac
+prepare_ports
+start_postgres
+build_backend
+start_backend
+build_extension
+print_summary

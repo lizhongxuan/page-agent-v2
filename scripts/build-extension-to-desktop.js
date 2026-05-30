@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { execFileSync } from 'node:child_process'
-import { cpSync, existsSync, mkdirSync, rmSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -8,10 +8,14 @@ import { fileURLToPath } from 'node:url'
 const rootDir = join(dirname(fileURLToPath(import.meta.url)), '..')
 const desktopDir = join(homedir(), 'Desktop')
 const extensionOutputDir = join(rootDir, 'packages/extension/.output')
+const extensionPackage = JSON.parse(
+	readFileSync(join(rootDir, 'packages/extension/package.json'), 'utf8')
+)
+const archiveBaseName = `page-agent-ext-${extensionPackage.version}-chrome`
 const unpackedSourceDir = join(extensionOutputDir, 'chrome-mv3')
-const zipSourcePath = join(extensionOutputDir, 'page-agent-ext-1.8.2-chrome.zip')
-const unpackedTargetDir = join(desktopDir, 'page-agent-ext-1.8.2-chrome')
-const zipTargetPath = join(desktopDir, 'page-agent-ext-1.8.2-chrome.zip')
+const zipSourcePath = join(extensionOutputDir, `${archiveBaseName}.zip`)
+const unpackedTargetDir = join(desktopDir, archiveBaseName)
+const zipTargetPath = join(desktopDir, `${archiveBaseName}.zip`)
 
 console.log('Building Chrome extension...')
 execFileSync('npm', ['run', 'build:ext'], { cwd: rootDir, stdio: 'inherit' })

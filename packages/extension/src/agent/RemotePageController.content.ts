@@ -10,20 +10,6 @@ import type {
 } from '@/webops/interactions/interactionTypes'
 import { WEBOPS_INTERACTION_RESPONSE_EVENT } from '@/webops/interactions/interactionTypes'
 import { webOpsInteractionBus } from '@/webops/interactions/overlayRoot'
-import type { RecordedAction } from '@/webops/recorder/actionEvents'
-import {
-	MANUAL_RECORDING_ACTIONS_STORAGE_KEY,
-	MANUAL_RECORDING_STATE_STORAGE_KEY,
-	type ManualRecordedEventSnapshot,
-	type ManualRecordedEventType,
-	type ManualRecordingState,
-	manualEventToRecordedAction,
-	mergeManualRecordedAction,
-} from '@/webops/recorder/manualRecording'
-import {
-	runBrowserWorkflowReplay,
-	runBrowserWorkflowStep,
-} from '@/webops/workflow/browserWorkflowReplay'
 
 import {
 	hidePageLock,
@@ -38,7 +24,6 @@ import { SIDE_PANEL_HANDOVER_ACTIVE_STORAGE_KEY } from './sidePanelHandover'
 export function initPageController() {
 	let pageController: PageController | null = null
 	let intervalID: number | null = null
-	initManualWorkflowRecorder()
 
 	const myTabIdPromise = chrome.runtime
 		.sendMessage({ type: 'PAGE_CONTROL', action: 'get_my_tab_id' })
@@ -141,28 +126,6 @@ export function initPageController() {
 				sendResponse(getWorkflowElements())
 				break
 
-			case 'run_workflow_recipe':
-				runBrowserWorkflowReplay(payload?.workflow, payload?.bindings)
-					.then((result) => sendResponse(result))
-					.catch((error: unknown) =>
-						sendResponse({
-							ok: false,
-							message: error instanceof Error ? error.message : String(error),
-						})
-					)
-				break
-
-			case 'run_workflow_step':
-				runBrowserWorkflowStep(payload?.step, payload?.bindings)
-					.then((result) => sendResponse(result))
-					.catch((error: unknown) =>
-						sendResponse({
-							ok: false,
-							message: error instanceof Error ? error.message : String(error),
-						})
-					)
-				break
-
 			case 'get_last_update_time':
 			case 'get_browser_state':
 			case 'update_tree':
@@ -192,132 +155,6 @@ export function initPageController() {
 
 		return true
 	})
-}
-
-function initManualWorkflowRecorder() {
-	document.addEventListener(
-		'click',
-		(event) => {
-			void recordManualDomEvent('click', event)
-		},
-		true
-	)
-	document.addEventListener(
-		'input',
-		(event) => {
-			void recordManualDomEvent('input', event)
-		},
-		true
-	)
-	document.addEventListener(
-		'change',
-		(event) => {
-			void recordManualDomEvent('change', event)
-		},
-		true
-	)
-	document.addEventListener(
-		'keydown',
-		(event) => {
-			if (event.key !== 'Enter') return
-			void recordManualDomEvent('keydown', event)
-		},
-		true
-	)
-}
-
-async function recordManualDomEvent(type: ManualRecordedEventType, event: Event) {
-	const state = await getManualRecordingState()
-	if (!state?.active) return
-	const rawTarget = event.target instanceof HTMLElement ? event.target : undefined
-	const target = rawTarget ? manualRecordingTargetForEvent(type, rawTarget) : undefined
-	if (!target || shouldIgnoreManualRecordingTarget(target)) return
-	if (type === 'input' && !isTextEntryTarget(target)) return
-	const snapshot = toManualEventSnapshot(state, type, event, target)
-	const action = manualEventToRecordedAction(snapshot)
-	await appendManualRecordedAction(action)
-}
-
-async function getManualRecordingState(): Promise<ManualRecordingState | undefined> {
-	const stored = await chrome.storage.local.get(MANUAL_RECORDING_STATE_STORAGE_KEY)
-	return stored[MANUAL_RECORDING_STATE_STORAGE_KEY] as ManualRecordingState | undefined
-}
-
-function toManualEventSnapshot(
-	state: ManualRecordingState,
-	type: ManualRecordedEventType,
-	event: Event,
-	target: HTMLElement
-): ManualRecordedEventSnapshot {
-	return {
-		id: `${state.id}_${Date.now()}_${Math.random().toString(16).slice(2)}`,
-		type,
-		timestamp: Date.now(),
-		pageUrl: location.href,
-		pageTitle: document.title,
-		target: {
-			role: target.getAttribute('role') || implicitRole(target),
-			name: getAccessibleName(target),
-			text: targetText(target),
-			css: stableCssSelector(target),
-			testId:
-				target.getAttribute('data-testid') ||
-				target.getAttribute('data-test') ||
-				target.getAttribute('data-cy') ||
-				undefined,
-			inputType: target instanceof HTMLInputElement ? target.type : undefined,
-		},
-		value: valueFromTarget(target),
-		key: event instanceof KeyboardEvent ? event.key : undefined,
-	}
-}
-
-function manualRecordingTargetForEvent(
-	type: ManualRecordedEventType,
-	target: HTMLElement
-): HTMLElement {
-	if (type !== 'click') return target
-	return (
-		target.closest<HTMLElement>(
-			'button,a,input,textarea,select,[role],[tabindex]:not([tabindex="-1"])'
-		) ?? target
-	)
-}
-
-async function appendManualRecordedAction(action: RecordedAction) {
-	const stored = await chrome.storage.local.get(MANUAL_RECORDING_ACTIONS_STORAGE_KEY)
-	const actions = Array.isArray(stored[MANUAL_RECORDING_ACTIONS_STORAGE_KEY])
-		? (stored[MANUAL_RECORDING_ACTIONS_STORAGE_KEY] as RecordedAction[])
-		: []
-	await chrome.storage.local.set({
-		[MANUAL_RECORDING_ACTIONS_STORAGE_KEY]: mergeManualRecordedAction(actions, action),
-	})
-}
-
-function shouldIgnoreManualRecordingTarget(target: HTMLElement) {
-	return target.closest('[data-page-agent-ignore-recording="true"]') !== null
-}
-
-function isTextEntryTarget(target: HTMLElement): boolean {
-	if (target instanceof HTMLTextAreaElement) return true
-	if (target.isContentEditable) return true
-	if (!(target instanceof HTMLInputElement)) return false
-	return ['', 'text', 'search', 'email', 'url', 'tel', 'number', 'password'].includes(target.type)
-}
-
-function valueFromTarget(target: HTMLElement) {
-	if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
-		return target.value
-	}
-	if (target instanceof HTMLSelectElement) {
-		return target.value
-	}
-	return undefined
-}
-
-function targetText(target: HTMLElement) {
-	const text = target.textContent?.trim()
-	return text ? text.slice(0, 120) : undefined
 }
 
 function executePageControllerMethod(

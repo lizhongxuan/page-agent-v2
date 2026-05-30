@@ -13,6 +13,11 @@ import (
 
 const deterministicDenseSize = 1024
 
+type Vectorizer interface {
+	DenseQuery(context.Context, string) ([]float32, error)
+	SparseQuery(context.Context, string) (map[string]any, error)
+}
+
 type EmbeddingVectorizer struct {
 	denseProvider  embedding.DenseProvider
 	sparseProvider embedding.SparseProvider

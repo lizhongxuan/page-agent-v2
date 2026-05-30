@@ -3,8 +3,6 @@ import type { BrowserState } from '@page-agent/page-controller'
 import type { InteractionEvent, InteractionResponse } from '@/webops/interactions/interactionTypes'
 import type { RecordedActionTarget, RecordedActionType } from '@/webops/recorder/actionEvents'
 import { recordWebOpsAction } from '@/webops/recorder/runtimeSession'
-import type { BrowserWorkflowReplayResult } from '@/webops/workflow/browserWorkflowReplay'
-import type { WorkflowRecipe, WorkflowRecipeStep } from '@/webops/workflow/types'
 
 import type { TabsController } from './TabsController'
 import { normalizeBrowserStateResponse } from './browserState'
@@ -107,65 +105,6 @@ export class RemotePageController {
 		})
 
 		return normalizeWorkflowElementsResponse(response)
-	}
-
-	async runWorkflowRecipe(
-		workflow: WorkflowRecipe,
-		bindings: Record<string, string>
-	): Promise<BrowserWorkflowReplayResult> {
-		const currentUrl = await this.getCurrentUrl()
-		if (!this.currentTabId || !isContentScriptAllowed(currentUrl)) {
-			return {
-				ok: false,
-				message: 'Current page is not available for workflow replay. Open a web page first.',
-			}
-		}
-
-		for (const chunk of workflow.chunks) {
-			for (const step of chunk.steps) {
-				const result = await this.runWorkflowStep(step, bindings)
-				if (!result.ok) {
-					return {
-						ok: false,
-						message: result.message,
-						failedChunkId: chunk.id,
-						failedStepId: step.id,
-					}
-				}
-				await this.waitForReplayStep(step)
-			}
-		}
-
-		return { ok: true }
-	}
-
-	private async runWorkflowStep(
-		step: WorkflowRecipeStep,
-		bindings: Record<string, string>
-	): Promise<BrowserWorkflowReplayResult> {
-		if (!this.currentTabId) {
-			return { ok: false, message: 'No active tab is available for workflow replay.' }
-		}
-		const response = await sendMessage({
-			type: 'PAGE_CONTROL',
-			action: 'run_workflow_step',
-			targetTabId: this.currentTabId,
-			payload: { step, bindings },
-		})
-		if (response?.ok === true) return { ok: true }
-		return {
-			ok: false,
-			message: response?.message || response?.error || `Workflow replay step failed: ${step.id}`,
-			failedStepId: step.id,
-		}
-	}
-
-	private async waitForReplayStep(step: WorkflowRecipeStep): Promise<void> {
-		if (step.type === 'click' || step.type === 'press') {
-			await sleep(900)
-			return
-		}
-		await sleep(150)
 	}
 
 	async updateTree(): Promise<void> {
@@ -423,10 +362,6 @@ function normalizeWorkflowElementsResponse(response: any): WorkflowElementsObser
 		: []
 
 	return { visibleText, controls }
-}
-
-function sleep(ms: number): Promise<void> {
-	return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 /**

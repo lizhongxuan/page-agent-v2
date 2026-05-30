@@ -1,3 +1,10 @@
+import type {
+	MemoryContextDebug,
+	MemoryEvidenceRef,
+	MemoryPageSummary,
+	MemorySurfaceSummary,
+} from '../memory/types'
+
 export type RecordedActionType =
 	| 'observe'
 	| 'click'
@@ -24,6 +31,7 @@ export interface RecordedAction {
 	timestamp: number
 	pageUrl: string
 	pageTitle: string
+	surfaceId?: string
 	target?: RecordedActionTarget
 	value?: string
 	result: 'success' | 'failed' | 'skipped'
@@ -42,6 +50,16 @@ export interface RedactionReportEntry {
 	field: string
 }
 
+export interface RecordedMemoryContext {
+	contextId?: string
+	contextPrompt: string
+	recommendedMode?: 'normal' | 'guided'
+	currentPageState?: MemoryPageSummary
+	currentSurface?: MemorySurfaceSummary
+	evidenceRefs: MemoryEvidenceRef[]
+	debug?: MemoryContextDebug
+}
+
 export interface RecordedSession {
 	id: string
 	task: string
@@ -51,4 +69,6 @@ export interface RecordedSession {
 	steps: RecordedAction[]
 	knowledgeHits: RecordedKnowledgeHit[]
 	redactionReport: RedactionReportEntry[]
+	memoryContext?: RecordedMemoryContext
+	memoryUpdates?: string[]
 }

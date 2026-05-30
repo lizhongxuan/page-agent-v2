@@ -16,21 +16,6 @@ import {
 	defaultKnowledgeSettings,
 } from '@/webops/knowledge/KnowledgeSettings'
 import type { RecordedSession } from '@/webops/recorder/actionEvents'
-import { RetrievalClient } from '@/webops/workflow/RetrievalClient'
-import { WorkflowReplayService } from '@/webops/workflow/WorkflowReplayService'
-import {
-	PENDING_REPAIR_PATCH_STORAGE_KEY,
-	buildRepairPatchCandidateRequest,
-} from '@/webops/workflow/repairCandidate'
-import {
-	type WorkflowReplayStatusEvent,
-	formatWorkflowReplayStatus,
-} from '@/webops/workflow/replayStatus'
-import {
-	clearWorkflowSessionStorage,
-	formatReplayConfirmationQuestion,
-	isReplayConfirmationApproved,
-} from '@/webops/workflow/workflowSessionState'
 
 import { MultiPageAgent } from './MultiPageAgent'
 import { type PendingUserQuestion, createAskUserBridge } from './askUserBridge'
@@ -198,69 +183,12 @@ export function useAgent(): UseAgentResult {
 		setCurrentTask(resolvedContinuation.displayTask ?? resolvedContinuation.task)
 		setHistory([...historyPrefixRef.current])
 		setWebOpsSession(undefined)
-		const replayHistory: HistoricalEvent[] = []
-		const appendReplayStatus = (event: WorkflowReplayStatusEvent) => {
-			const entry = {
-				type: 'observation' as const,
-				content: formatWorkflowReplayStatus(event),
-			}
-			replayHistory.push(entry)
-			if (isCurrentRun()) {
-				setHistory([...historyPrefixRef.current, ...replayHistory])
-			}
-		}
-		const replay = await tryWorkflowReplay(
-			agent,
-			resolvedContinuation.task,
-			appendReplayStatus,
-			async (confirmation) => {
-				const question = formatReplayConfirmationQuestion(confirmation)
-				const answer = await askBridgeRef.current?.askWithTaskContext(
-					resolvedContinuation.task,
-					question
-				)
-				return isCurrentRun() && isReplayConfirmationApproved(answer ?? '')
-			}
-		)
-		if (!isCurrentRun()) {
-			return { success: false, data: 'Task was superseded by a new session.', history: [] }
-		}
-		if (replay.status === 'completed') {
-			const history = [...historyPrefixRef.current, ...replayHistory]
-			setHistory(history)
-			return {
-				success: true,
-				data: `Workflow replay completed${replay.runId ? ` (${replay.runId})` : ''}`,
-				history,
-			}
-		}
-		if (replay.reason !== 'not_configured') {
-			agent.pushObservation(
-				formatWorkflowReplayStatus({
-					kind: 'fallback',
-					reason: replay.reason,
-					message: replay.message,
-				})
-			)
-		}
 		const result = await agent.execute(resolvedContinuation.task)
 		if (!isCurrentRun()) {
 			return { success: false, data: 'Task was superseded by a new session.', history: [] }
 		}
 		const fallbackSession = agent.getWebOpsSession() ?? null
 		setWebOpsSession(fallbackSession)
-		if (
-			result.success &&
-			replay.status === 'fallback' &&
-			replay.reason === 'run_failed' &&
-			fallbackSession
-		) {
-			await createRepairCandidateAfterFallback({
-				replay,
-				session: fallbackSession,
-				onStatus: appendReplayStatus,
-			})
-		}
 		return result
 	}, [])
 
@@ -278,9 +206,6 @@ export function useAgent(): UseAgentResult {
 		setWebOpsSession(undefined)
 		setPendingQuestion(null)
 		setStatus('idle')
-		clearWorkflowSessionStorage(chrome.storage.local).catch((error) =>
-			console.error('[SidePanel] Failed to clear workflow session storage:', error)
-		)
 	}, [])
 
 	const stop = useCallback(() => {
@@ -347,81 +272,4 @@ export function useAgent(): UseAgentResult {
 		stop,
 		configure,
 	}
-}
-
-async function createRepairCandidateAfterFallback(input: {
-	replay: Extract<ReplayAttemptResult, { status: 'fallback' }>
-	session: RecordedSession
-	onStatus: (event: WorkflowReplayStatusEvent) => void
-}) {
-	const context = 'repairContext' in input.replay ? input.replay.repairContext : undefined
-	if (!context?.stepId) return
-	const settings = await chrome.storage.local.get(['workflowBackend'])
-	const workflowBackend = settings.workflowBackend as
-		| { baseUrl?: string; apiKey?: string; projectId?: string }
-		| undefined
-	if (!workflowBackend?.baseUrl) return
-	const build = buildRepairPatchCandidateRequest(input.session, {
-		projectId: workflowBackend.projectId || 'default',
-		workflowId: context.workflowId,
-		version: context.version,
-		chunkId: context.chunkId,
-		stepId: context.stepId,
-		fallbackReason: context.fallbackReason,
-		currentPageState: context.currentPageState,
-		currentUrl: context.currentUrl,
-		runId: context.runId,
-	})
-	if (!build.ok) return
-	const client = new RetrievalClient({
-		baseUrl: workflowBackend.baseUrl,
-		bearerToken: workflowBackend.apiKey || undefined,
-	})
-	const created = await client.createRepairPatchCandidate(build.request.patch)
-	if (!created.ok) return
-	await chrome.storage.local.set({ [PENDING_REPAIR_PATCH_STORAGE_KEY]: created.data })
-	input.onStatus({ kind: 'repair_candidate', patchName: created.data.newTargetSummary })
-}
-
-type ReplayAttemptResult =
-	| Awaited<ReturnType<WorkflowReplayService['tryReplay']>>
-	| { status: 'fallback'; reason: 'not_configured'; message: string }
-
-async function tryWorkflowReplay(
-	agent: MultiPageAgent,
-	task: string,
-	onStatus?: (event: WorkflowReplayStatusEvent) => void,
-	confirmReplay?: import('@/webops/workflow/WorkflowReplayService').WorkflowReplayConfirmation
-): Promise<ReplayAttemptResult> {
-	const settings = await chrome.storage.local.get(['workflowBackend'])
-	const workflowBackend = settings.workflowBackend as
-		| { baseUrl?: string; apiKey?: string; projectId?: string }
-		| undefined
-	if (!workflowBackend?.baseUrl) {
-		return {
-			status: 'fallback',
-			reason: 'not_configured',
-			message: 'Workflow backend is not configured.',
-		}
-	}
-	const page = await agent.getCurrentPageObservation(task)
-	const service = new WorkflowReplayService({
-		client: new RetrievalClient({
-			baseUrl: workflowBackend.baseUrl,
-			bearerToken: workflowBackend.apiKey || undefined,
-		}),
-		projectId: workflowBackend.projectId || 'default',
-		onStatus,
-		confirmReplay,
-		executeReplay: async ({ workflow, bindings }) => agent.runWorkflowRecipe(workflow, bindings),
-	})
-	return service.tryReplay({
-		task,
-		currentUrl: page.url,
-		pageObservation: {
-			title: page.title,
-			visibleText: page.visibleText,
-			controls: page.controls,
-		},
-	})
 }

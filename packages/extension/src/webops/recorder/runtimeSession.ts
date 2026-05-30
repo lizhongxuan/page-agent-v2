@@ -1,6 +1,6 @@
 import type { KnowledgeHit } from '../knowledge/types'
 import { SessionRecorder } from './SessionRecorder'
-import type { RecordedAction, RecordedSession } from './actionEvents'
+import type { RecordedAction, RecordedMemoryContext, RecordedSession } from './actionEvents'
 
 let recorder: SessionRecorder | undefined
 let lastSession: RecordedSession | undefined
@@ -24,6 +24,10 @@ export function addWebOpsKnowledgeHits(hits: KnowledgeHit[]) {
 			score: hit.score,
 		}))
 	)
+}
+
+export function setWebOpsMemoryContext(context: RecordedMemoryContext) {
+	recorder?.setMemoryContext(context)
 }
 
 export function finishWebOpsSession() {

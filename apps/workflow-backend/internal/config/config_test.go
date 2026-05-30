@@ -9,6 +9,9 @@ func TestLoadDefaults(t *testing.T) {
 	t.Setenv("WORKFLOW_DATA_DIR", "")
 	t.Setenv("QDRANT_URL", "")
 	t.Setenv("QDRANT_COLLECTION_PREFIX", "")
+	t.Setenv("WORKFLOW_STORAGE_BACKEND", "")
+	t.Setenv("WORKFLOW_POSTGRES_URL", "")
+	t.Setenv("WORKFLOW_DISABLE_QDRANT", "")
 	t.Setenv("EMBEDDING_MODEL", "")
 	t.Setenv("LLM_MODEL", "")
 	t.Setenv("RETRIEVAL_TOPK", "")
@@ -24,6 +27,15 @@ func TestLoadDefaults(t *testing.T) {
 	}
 	if cfg.QdrantCollectionPrefix != "pa" {
 		t.Fatalf("expected default qdrant prefix, got %q", cfg.QdrantCollectionPrefix)
+	}
+	if cfg.StorageBackend != "file" {
+		t.Fatalf("expected default file storage backend, got %q", cfg.StorageBackend)
+	}
+	if cfg.PostgresURL != "" {
+		t.Fatalf("expected empty default postgres URL, got %q", cfg.PostgresURL)
+	}
+	if !cfg.DisableQdrant {
+		t.Fatal("expected qdrant to be disabled by default")
 	}
 	if cfg.RetrievalTopK != 8 {
 		t.Fatalf("expected default topK 8, got %d", cfg.RetrievalTopK)
@@ -42,6 +54,9 @@ func TestLoadEnvironmentOverrides(t *testing.T) {
 	t.Setenv("QDRANT_URL", "http://qdrant.example.test:6333/")
 	t.Setenv("QDRANT_API_KEY", "secret")
 	t.Setenv("QDRANT_COLLECTION_PREFIX", "custom")
+	t.Setenv("WORKFLOW_STORAGE_BACKEND", "postgres")
+	t.Setenv("WORKFLOW_POSTGRES_URL", "postgres://page_agent:secret@127.0.0.1:5432/page_agent")
+	t.Setenv("WORKFLOW_DISABLE_QDRANT", "true")
 	t.Setenv("EMBEDDING_BASE_URL", "https://llm.example.test/v1")
 	t.Setenv("EMBEDDING_API_KEY", "embed-secret")
 	t.Setenv("EMBEDDING_MODEL", "bge-m3")
@@ -66,6 +81,15 @@ func TestLoadEnvironmentOverrides(t *testing.T) {
 	if cfg.QdrantAPIKey != "secret" {
 		t.Fatal("qdrant api key override not applied")
 	}
+	if cfg.StorageBackend != "postgres" {
+		t.Fatalf("storage backend override not applied: %#v", cfg)
+	}
+	if cfg.PostgresURL != "postgres://page_agent:secret@127.0.0.1:5432/page_agent" {
+		t.Fatalf("postgres URL override not applied: %#v", cfg)
+	}
+	if !cfg.DisableQdrant {
+		t.Fatal("disable qdrant override not applied")
+	}
 	if cfg.EmbeddingModel != "bge-m3" || cfg.SparseEmbeddingModel != "bge-m3-sparse" {
 		t.Fatalf("embedding overrides not applied: %#v", cfg)
 	}
@@ -74,6 +98,20 @@ func TestLoadEnvironmentOverrides(t *testing.T) {
 	}
 	if cfg.RetrievalTopK != 12 || cfg.RetrievalPrefetchLimit != 80 {
 		t.Fatalf("retrieval overrides not applied: %#v", cfg)
+	}
+}
+
+func TestLoadNormalizesInvalidStorageBackend(t *testing.T) {
+	t.Setenv("WORKFLOW_STORAGE_BACKEND", "sqlite")
+	t.Setenv("WORKFLOW_DISABLE_QDRANT", "YES")
+
+	cfg := Load()
+
+	if cfg.StorageBackend != "file" {
+		t.Fatalf("expected invalid storage backend to fall back to file, got %q", cfg.StorageBackend)
+	}
+	if !cfg.DisableQdrant {
+		t.Fatal("expected yes to parse as disabling qdrant")
 	}
 }
 

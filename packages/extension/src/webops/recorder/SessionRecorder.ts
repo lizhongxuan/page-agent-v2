@@ -1,4 +1,4 @@
-import type { RecordedAction, RecordedSession } from './actionEvents'
+import type { RecordedAction, RecordedMemoryContext, RecordedSession } from './actionEvents'
 import { redactSensitiveValue } from './redaction'
 
 export class SessionRecorder {
@@ -33,6 +33,11 @@ export class SessionRecorder {
 	addKnowledgeHits(hits: RecordedSession['knowledgeHits']) {
 		if (!this.session) return
 		this.session.knowledgeHits.push(...hits)
+	}
+
+	setMemoryContext(context: RecordedMemoryContext) {
+		if (!this.session) return
+		this.session.memoryContext = context
 	}
 
 	finish() {
