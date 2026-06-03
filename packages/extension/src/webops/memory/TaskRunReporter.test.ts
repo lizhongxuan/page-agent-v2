@@ -13,7 +13,7 @@ describe('buildMemoryTaskRunPayload', () => {
 			reasoning: [{ nextGoal: '使用服务名称搜索框定位服务。' }],
 			memoryContextId: 'ctx_1',
 			memoryEvidenceRefs: [
-				{ source: 'knowledge', id: 'chunk_1', rank: 1, score: 0.9 },
+				{ source: 'manual', id: 'chunk_1', rank: 1, score: 0.9 },
 				{ source: 'experience', id: 'exp_1', rank: 2, score: 0.82 },
 			],
 		})
@@ -27,7 +27,7 @@ describe('buildMemoryTaskRunPayload', () => {
 			summary: '服务状态是 running',
 			memoryContextId: 'ctx_1',
 			memoryEvidenceRefs: [
-				{ source: 'knowledge', id: 'chunk_1', rank: 1, score: 0.9 },
+				{ source: 'manual', id: 'chunk_1', rank: 1, score: 0.9 },
 				{ source: 'experience', id: 'exp_1', rank: 2, score: 0.82 },
 			],
 		})
@@ -209,6 +209,43 @@ describe('buildMemoryTaskRunPayload', () => {
 		})
 	})
 
+	it('preserves before and after observations on action steps', () => {
+		const session = sampleSession()
+		session.steps[0] = {
+			...session.steps[0],
+			beforeObservation: {
+				site: 'ops.example.test',
+				title: '服务管理',
+				activeTabs: ['运行状态'],
+				controlSignatures: [{ role: 'button', name: '搜索' }],
+			},
+			afterObservation: {
+				site: 'ops.example.test',
+				title: '筛选抽屉',
+				activeSurfaces: [
+					{
+						surfaceType: 'drawer',
+						title: '筛选',
+						controls: [{ role: 'button', name: '应用' }],
+					},
+				],
+			},
+		}
+
+		const payload = buildMemoryTaskRunPayload({
+			projectId: 'default',
+			session,
+			result: { success: true, summary: '服务状态是 running' },
+		})
+
+		expect(payload?.actionSteps?.[0]?.beforeObservation).toMatchObject({
+			activeTabs: ['运行状态'],
+		})
+		expect(payload?.actionSteps?.[0]?.afterObservation).toMatchObject({
+			activeSurfaces: [{ surfaceType: 'drawer', title: '筛选' }],
+		})
+	})
+
 	it('keeps URL ports in site keys so local page observations and task runs match', () => {
 		const session = { ...sampleSession(), startUrl: 'http://127.0.0.1:38403/service' }
 		session.steps = session.steps.map((step) => ({
@@ -238,7 +275,7 @@ describe('TaskRunReporter', () => {
 			session: sampleSession(),
 			result: { success: true, summary: '服务状态是 running' },
 			memoryContextId: 'ctx_1',
-			memoryEvidenceRefs: [{ source: 'knowledge', id: 'chunk_1', rank: 1, score: 0.9 }],
+			memoryEvidenceRefs: [{ source: 'manual', id: 'chunk_1', rank: 1, score: 0.9 }],
 		})
 
 		expect(completeTaskRun).toHaveBeenCalledWith(
@@ -246,7 +283,7 @@ describe('TaskRunReporter', () => {
 				id: 'task_run_1',
 				status: 'success',
 				memoryContextId: 'ctx_1',
-				memoryEvidenceRefs: [{ source: 'knowledge', id: 'chunk_1', rank: 1, score: 0.9 }],
+				memoryEvidenceRefs: [{ source: 'manual', id: 'chunk_1', rank: 1, score: 0.9 }],
 			})
 		)
 	})
@@ -277,7 +314,7 @@ function sampleSession(): RecordedSession {
 		task: '查看 kme-prod-001 运行状态',
 		startUrl: 'https://ops.example.test/service',
 		startedAt: Date.now(),
-		knowledgeHits: [],
+		memoryHits: [],
 		redactionReport: [],
 		steps: [
 			{

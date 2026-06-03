@@ -1,6 +1,7 @@
 import type {
 	MemoryContextDebug,
 	MemoryEvidenceRef,
+	MemoryPageObservationSignal,
 	MemoryPageSummary,
 	MemorySurfaceSummary,
 } from '../memory/types'
@@ -36,9 +37,11 @@ export interface RecordedAction {
 	value?: string
 	result: 'success' | 'failed' | 'skipped'
 	note?: string
+	beforeObservation?: MemoryPageObservationSignal
+	afterObservation?: MemoryPageObservationSignal
 }
 
-export interface RecordedKnowledgeHit {
+export interface RecordedMemoryHit {
 	id: string
 	title: string
 	source: string
@@ -67,7 +70,7 @@ export interface RecordedSession {
 	startedAt: number
 	endedAt?: number
 	steps: RecordedAction[]
-	knowledgeHits: RecordedKnowledgeHit[]
+	memoryHits: RecordedMemoryHit[]
 	redactionReport: RedactionReportEntry[]
 	memoryContext?: RecordedMemoryContext
 	memoryUpdates?: string[]

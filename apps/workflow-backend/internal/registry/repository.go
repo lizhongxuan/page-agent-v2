@@ -24,11 +24,6 @@ type Repository interface {
 	ListPageSurfaces(context.Context, PageSurfaceListQuery) ([]PageSurface, error)
 	SavePageTransition(context.Context, PageTransition) error
 	ListPageTransitions(context.Context, PageTransitionListQuery) ([]PageTransition, error)
-	SaveKnowledgeDocument(context.Context, KnowledgeDocument) error
-	SaveKnowledgeChunks(context.Context, []KnowledgeChunk) error
-	SearchKnowledgeChunks(context.Context, KnowledgeSearchQuery) ([]KnowledgeChunk, error)
-	SaveBusinessSystemProfile(context.Context, BusinessSystemProfile) error
-	GetBusinessSystemProfile(context.Context, BusinessSystemProfileQuery) (BusinessSystemProfile, error)
 	SavePageObservationEvent(context.Context, PageObservationEvent) error
 	ListPageObservationEvents(context.Context, PageObservationEventListQuery) ([]PageObservationEvent, error)
 	SaveExperienceMemory(context.Context, ExperienceMemory) error
@@ -61,10 +56,46 @@ type Repository interface {
 	ListOutboxEvents(context.Context, Status) ([]OutboxEvent, error)
 }
 
+type SiteTaskGuideRepository interface {
+	SaveSiteTaskGuide(context.Context, SiteTaskGuide) error
+	GetSiteTaskGuide(context.Context, string) (SiteTaskGuide, error)
+	ListSiteTaskGuides(context.Context, SiteTaskGuideListQuery) ([]SiteTaskGuide, error)
+	SearchSiteTaskGuides(context.Context, SiteTaskGuideSearchQuery) ([]SiteTaskGuide, error)
+	UpdateSiteTaskGuideStatus(context.Context, string, Status) error
+	SaveSiteTaskGuideFeedback(context.Context, SiteTaskGuideFeedback) error
+}
+
+type SiteManualRepository interface {
+	SaveSiteManualSource(context.Context, SiteManualSource) error
+	FindSiteManualSourceByHash(context.Context, SiteManualSourceHashQuery) (SiteManualSource, error)
+	GetSiteManualSource(context.Context, string) (SiteManualSource, error)
+	ListSiteManualSources(context.Context, SiteManualSourceListQuery) ([]SiteManualSource, error)
+	UpdateSiteManualSourceStatus(context.Context, string, Status) error
+	DeleteSiteManualSource(context.Context, string) error
+	SaveSiteManualWiki(context.Context, []SiteManualWikiPage, []SiteManualWikiChunk) error
+	GetSiteManualWikiForSource(context.Context, string) (SiteManualWiki, error)
+	SearchSiteManualWikiChunks(context.Context, SiteManualWikiSearchQuery) ([]SiteManualKnowledgeMatch, error)
+}
+
 type CandidateListQuery struct {
 	ProjectID string
 	Source    string
 	Status    Status
+}
+
+type SiteTaskGuideListQuery struct {
+	ProjectID string
+	Site      string
+	Module    string
+	Status    Status
+}
+
+type SiteTaskGuideSearchQuery struct {
+	ProjectID string
+	Site      string
+	Module    string
+	Task      string
+	Limit     int
 }
 
 type RepairPatchListQuery struct {

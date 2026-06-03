@@ -35,8 +35,11 @@ func TestMemoryConsolidationServiceOptimizesSuccessfulTaskRun(t *testing.T) {
 	if len(result.BranchNoise) != 3 {
 		t.Fatalf("expected branch noise, got %#v", result.BranchNoise)
 	}
-	if result.ExperienceID == "" {
-		t.Fatalf("expected experience update: %#v", result)
+	if result.ExperienceID != "" {
+		t.Fatalf("legacy experience should not be generated: %#v", result)
+	}
+	if result.SiteTaskGuideID == "" {
+		t.Fatalf("expected site task guide update: %#v", result)
 	}
 	got, err := repo.GetTaskRun(ctx, run.ID)
 	if err != nil {
@@ -178,8 +181,11 @@ func TestMemoryConsolidationServicePunishesMisleadingEvidenceAndStoresCompetingE
 	if err != nil {
 		t.Fatalf("ConsolidateTaskRun failed: %v", err)
 	}
-	if result.ExperienceID == "" {
-		t.Fatalf("expected successful path to still become competing experience: %#v", result)
+	if result.ExperienceID != "" {
+		t.Fatalf("legacy experience should not be generated: %#v", result)
+	}
+	if result.SiteTaskGuideID == "" {
+		t.Fatalf("expected successful path to still update site task guide: %#v", result)
 	}
 	stats, err := repo.GetMemoryEvidenceStats(ctx, "default", registry.MemoryEvidenceSourceExperience, "exp_wrong_branch")
 	if err != nil {

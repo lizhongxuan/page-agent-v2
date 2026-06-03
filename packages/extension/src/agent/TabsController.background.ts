@@ -21,11 +21,11 @@ export function handleTabControlMessage(
 				chrome.tabs.query({ active: true, currentWindow: true }),
 				chrome.tabs.query({ active: true }),
 			])
-				.then(([currentWindowActiveTabs, activeTabs]) => {
-					const tab =
+				.then(async ([currentWindowActiveTabs, activeTabs]) => {
+					const controllableTab =
 						[...currentWindowActiveTabs, ...activeTabs].find(isControllableTab) ??
-						currentWindowActiveTabs[0] ??
-						activeTabs[0]
+						(await rememberedWorkflowTargetTab())
+					const tab = controllableTab ?? currentWindowActiveTabs[0] ?? activeTabs[0]
 					debug('get_active_tab: success', tab)
 					sendResponse({ success: true, tab })
 				})
@@ -138,6 +138,16 @@ export function handleTabControlMessage(
 
 function isControllableTab(tab: chrome.tabs.Tab | undefined): boolean {
 	return Boolean(tab?.id && tab.url && /^https?:\/\//.test(tab.url))
+}
+
+async function rememberedWorkflowTargetTab(): Promise<chrome.tabs.Tab | undefined> {
+	const storage = chrome.storage?.local
+	if (!storage?.get) return undefined
+	const value = await storage.get('workflowTargetTabId')
+	const tabID = Number(value?.workflowTargetTabId)
+	if (!Number.isFinite(tabID)) return undefined
+	const tabs = await chrome.tabs.query({})
+	return tabs.find((tab) => tab.id === tabID && isControllableTab(tab))
 }
 
 const tabEventPorts = new Set<chrome.runtime.Port>()

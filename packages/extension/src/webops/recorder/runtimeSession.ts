@@ -1,6 +1,10 @@
-import type { KnowledgeHit } from '../knowledge/types'
 import { SessionRecorder } from './SessionRecorder'
-import type { RecordedAction, RecordedMemoryContext, RecordedSession } from './actionEvents'
+import type {
+	RecordedAction,
+	RecordedMemoryContext,
+	RecordedMemoryHit,
+	RecordedSession,
+} from './actionEvents'
 
 let recorder: SessionRecorder | undefined
 let lastSession: RecordedSession | undefined
@@ -15,8 +19,8 @@ export function recordWebOpsAction(action: RecordedAction) {
 	recorder?.record(action)
 }
 
-export function addWebOpsKnowledgeHits(hits: KnowledgeHit[]) {
-	recorder?.addKnowledgeHits(
+export function addWebOpsMemoryHits(hits: RecordedMemoryHit[]) {
+	recorder?.addMemoryHits(
 		hits.map((hit) => ({
 			id: hit.id,
 			title: hit.title,

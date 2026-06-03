@@ -89,23 +89,6 @@ func TestTaskRunCarriesOriginalAndOptimizedPaths(t *testing.T) {
 }
 
 func TestMemoryV2TypesValidateSummariesAndSearchableText(t *testing.T) {
-	profile := BusinessSystemProfile{
-		ProjectID: "default",
-		Site:      "ops.example.com",
-		Summary:   "Service operations system for querying service health and ownership.",
-		Modules: []BusinessModule{
-			{
-				Name:             "Service Management",
-				Purpose:          "Query service status and owner.",
-				EntryPageStateID: "page_service_list",
-			},
-		},
-		Terms: map[string]string{"service status": "Current health state."},
-	}
-	if err := ValidateMemoryRecord(profile); err != nil {
-		t.Fatalf("expected profile to validate: %v", err)
-	}
-
 	experience := ExperienceMemory{
 		ID:             "exp_service_status",
 		ProjectID:      "default",
@@ -144,15 +127,17 @@ func TestMemoryV2TypesValidateSummariesAndSearchableText(t *testing.T) {
 }
 
 func TestMemoryAttributionLabelConstantsStable(t *testing.T) {
-	if MemoryEvidenceSourceKnowledge != "knowledge" ||
+	if MemoryEvidenceSourceGuide != "guide" ||
 		MemoryEvidenceSourceExperience != "experience" ||
 		MemoryEvidenceSourceFailure != "failure" ||
-		MemoryEvidenceSourceNavigation != "navigation" {
-		t.Fatalf("unexpected memory evidence source constants: %q %q %q %q",
-			MemoryEvidenceSourceKnowledge,
+		MemoryEvidenceSourceNavigation != "navigation" ||
+		MemoryEvidenceSourceManual != "manual" {
+		t.Fatalf("unexpected memory evidence source constants: %q %q %q %q %q",
+			MemoryEvidenceSourceGuide,
 			MemoryEvidenceSourceExperience,
 			MemoryEvidenceSourceFailure,
 			MemoryEvidenceSourceNavigation,
+			MemoryEvidenceSourceManual,
 		)
 	}
 	if MemoryAttributionHelpful != "helpful" ||
@@ -167,6 +152,48 @@ func TestMemoryAttributionLabelConstantsStable(t *testing.T) {
 			MemoryAttributionStale,
 			MemoryAttributionNeutral,
 		)
+	}
+}
+
+func TestSiteTaskGuideSearchableTextIncludesIntentAndSemanticTargets(t *testing.T) {
+	guide := SiteTaskGuide{
+		TaskIntentKey:     "restore_instance_latest_full_backup",
+		TaskIntentSummary: "restore instance from latest full backup",
+		TaskIntentTerms: SiteTaskIntentTerms{
+			Positive: []string{"restore", "backup"},
+			Negative: []string{"delete", "remove"},
+		},
+		TaskExamples: []string{"restore instance by latest backup"},
+		Steps: []SiteTaskGuideStep{{
+			Text:   "Click Data Restore.",
+			Target: "Data Restore",
+			SemanticTarget: SiteTaskGuideStepTarget{
+				Role: "button",
+				Text: "Data Restore",
+			},
+		}},
+		UIStateEntries: []SiteTaskGuideUIStateEntry{{
+			ID:         "state_full_backup_tab",
+			Name:       "Full Backup tab",
+			StateType:  SiteTaskGuideUIStateTab,
+			StepOffset: 1,
+			Evidence: SiteTaskGuideUIStateEvidence{
+				ActiveTabAny: []string{"Full Backup"},
+				ControlsAll:  []ControlSignature{{Role: "button", Name: "Data Restore"}},
+			},
+		}},
+	}
+
+	text := guide.SearchableText()
+
+	if !strings.Contains(text, "restore instance from latest full backup") {
+		t.Fatalf("expected task intent in searchable text: %s", text)
+	}
+	if strings.Contains(text, "delete") || strings.Contains(text, "remove") {
+		t.Fatalf("negative intent terms must not boost searchable text: %s", text)
+	}
+	if !strings.Contains(text, "Data Restore") {
+		t.Fatalf("expected stable target text in searchable text: %s", text)
 	}
 }
 

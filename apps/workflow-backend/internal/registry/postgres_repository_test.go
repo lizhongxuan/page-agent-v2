@@ -92,12 +92,6 @@ func TestPostgresRepositoryRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AppendOutboxEvent failed: %v", err)
 	}
-	profile := BusinessSystemProfile{
-		ProjectID: "default",
-		Site:      "github.com",
-		Summary:   "GitHub workflow test profile.",
-		Modules:   []BusinessModule{{Name: "Issues", Purpose: "Search repository issues.", EntryPageStateID: "github_issues_list"}},
-	}
 	observation := PageObservationEvent{
 		ID:                "obs_postgres_roundtrip",
 		ProjectID:         "default",
@@ -164,9 +158,6 @@ func TestPostgresRepositoryRoundTrip(t *testing.T) {
 		TargetID:   experience.ID,
 		Status:     ReviewStatusPending,
 		Summary:    "Review issue search experience.",
-	}
-	if err := repo.SaveBusinessSystemProfile(ctx, profile); err != nil {
-		t.Fatalf("SaveBusinessSystemProfile failed: %v", err)
 	}
 	if err := repo.SavePageObservationEvent(ctx, observation); err != nil {
 		t.Fatalf("SavePageObservationEvent failed: %v", err)
@@ -235,16 +226,6 @@ func TestPostgresRepositoryRoundTrip(t *testing.T) {
 	}
 	if !containsOutboxEvent(outboxEvents, outbox.ID) {
 		t.Fatalf("expected outbox event %#v in %#v", outbox, outboxEvents)
-	}
-	gotProfile, err := repo.GetBusinessSystemProfile(ctx, BusinessSystemProfileQuery{
-		ProjectID:  "default",
-		SourceType: MemorySourceProduction,
-	})
-	if err != nil {
-		t.Fatalf("GetBusinessSystemProfile failed: %v", err)
-	}
-	if gotProfile.Modules[0].Name != "Issues" {
-		t.Fatalf("unexpected profile: %#v", gotProfile)
 	}
 	observations, err := repo.ListPageObservationEvents(ctx, PageObservationEventListQuery{ProjectID: "default", Site: "github.com"})
 	if err != nil {

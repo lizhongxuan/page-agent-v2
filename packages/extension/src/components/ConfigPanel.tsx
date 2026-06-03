@@ -15,10 +15,6 @@ import type { ExtConfig, LanguagePreference } from '@/agent/useAgent'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
-import {
-	type KnowledgeSettings,
-	defaultKnowledgeSettings,
-} from '@/webops/knowledge/KnowledgeSettings'
 
 interface ConfigPanelProps {
 	config: ExtConfig | null
@@ -27,15 +23,15 @@ interface ConfigPanelProps {
 }
 
 function workflowMemoryBaseUrl(config: ExtConfig | null): string {
-	return config?.workflowBackend?.baseUrl ?? config?.knowledgeSettings?.baseUrl ?? ''
+	return config?.workflowBackend?.baseUrl ?? ''
 }
 
 function workflowMemoryProjectId(config: ExtConfig | null): string {
-	return config?.workflowBackend?.projectId ?? config?.knowledgeSettings?.projectKey ?? 'default'
+	return config?.workflowBackend?.projectId ?? 'default'
 }
 
 function workflowMemoryApiKey(config: ExtConfig | null): string {
-	return config?.workflowBackend?.apiKey ?? config?.knowledgeSettings?.apiKey ?? ''
+	return config?.workflowBackend?.apiKey ?? ''
 }
 
 export function ConfigPanel({ config, onSave, onClose }: ConfigPanelProps) {
@@ -53,9 +49,6 @@ export function ConfigPanel({ config, onSave, onClose }: ConfigPanelProps) {
 	)
 	const [disableNamedToolChoice, setDisableNamedToolChoice] = useState(
 		config?.disableNamedToolChoice ?? false
-	)
-	const [knowledgeSettings, setKnowledgeSettings] = useState<KnowledgeSettings>(
-		config?.knowledgeSettings ?? defaultKnowledgeSettings
 	)
 	const [workflowBackendBaseUrl, setWorkflowBackendBaseUrl] = useState(() =>
 		workflowMemoryBaseUrl(config)
@@ -85,7 +78,6 @@ export function ConfigPanel({ config, onSave, onClose }: ConfigPanelProps) {
 		setExperimentalLlmsTxt(config?.experimentalLlmsTxt ?? false)
 		setExperimentalIncludeAllTabs(config?.experimentalIncludeAllTabs ?? false)
 		setDisableNamedToolChoice(config?.disableNamedToolChoice ?? false)
-		setKnowledgeSettings(config?.knowledgeSettings ?? defaultKnowledgeSettings)
 		setWorkflowBackendBaseUrl(workflowMemoryBaseUrl(config))
 		setWorkflowBackendProjectId(workflowMemoryProjectId(config))
 		setWorkflowBackendApiKey(workflowMemoryApiKey(config))
@@ -129,12 +121,6 @@ export function ConfigPanel({ config, onSave, onClose }: ConfigPanelProps) {
 			const memoryBaseUrl = workflowBackendBaseUrl.trim()
 			const memoryProjectId = workflowBackendProjectId.trim() || 'default'
 			const memoryApiKey = workflowBackendApiKey.trim()
-			const sharedKnowledgeSettings: KnowledgeSettings = {
-				...knowledgeSettings,
-				baseUrl: memoryBaseUrl,
-				projectKey: memoryProjectId,
-				apiKey: memoryApiKey,
-			}
 			await onSave({
 				apiKey,
 				baseURL,
@@ -145,7 +131,6 @@ export function ConfigPanel({ config, onSave, onClose }: ConfigPanelProps) {
 				experimentalLlmsTxt,
 				experimentalIncludeAllTabs,
 				disableNamedToolChoice,
-				knowledgeSettings: sharedKnowledgeSettings,
 				workflowBackend: memoryBaseUrl
 					? {
 							baseUrl: memoryBaseUrl,
@@ -320,24 +305,15 @@ export function ConfigPanel({ config, onSave, onClose }: ConfigPanelProps) {
 					onChange={(e) => setWorkflowBackendApiKey(e.target.value)}
 					className="text-xs h-8"
 				/>
-				<div className="flex items-center justify-between gap-3">
-					<div className="text-xs font-medium">项目知识库</div>
-					<Switch
-						checked={knowledgeSettings.enabled}
-						onCheckedChange={(enabled) =>
-							setKnowledgeSettings((current) => ({ ...current, enabled }))
-						}
-					/>
-				</div>
-				<label className="flex items-center justify-between cursor-pointer">
-					<span className="text-xs text-muted-foreground">允许发送页面摘要</span>
-					<Switch
-						checked={knowledgeSettings.allowPageSummary}
-						onCheckedChange={(allowPageSummary) =>
-							setKnowledgeSettings((current) => ({ ...current, allowPageSummary }))
-						}
-					/>
-				</label>
+				<a
+					href="/hub.html?view=site-manuals"
+					target="_blank"
+					rel="noopener noreferrer"
+					className="flex items-center justify-between rounded-md border bg-background px-2.5 py-2 text-xs text-muted-foreground hover:text-foreground"
+				>
+					Site Manual Library
+					<ExternalLink className="size-3" />
+				</a>
 			</div>
 
 			{/* Advanced Config */}

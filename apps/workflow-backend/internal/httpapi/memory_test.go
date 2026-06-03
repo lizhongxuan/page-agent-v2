@@ -58,38 +58,12 @@ func TestMemoryPageObservationsRouteRejectsMissingProject(t *testing.T) {
 	}
 }
 
-func TestMemoryDocumentsAndContextRoutes(t *testing.T) {
+func TestMemoryContextRouteUsesGuideAndManualShape(t *testing.T) {
 	repo, err := registry.NewFileRepository(t.TempDir())
 	if err != nil {
 		t.Fatalf("NewFileRepository failed: %v", err)
 	}
 	router := NewRouterWithServices(config.Config{}, Services{Registry: repo})
-
-	docResponse := performJSON(router, http.MethodPost, "/api/memory/documents", map[string]any{
-		"documents": []map[string]any{
-			{
-				"id":        "doc_service",
-				"projectId": "default",
-				"title":     "服务管理手册",
-				"source":    "manual",
-				"url":       "https://ops.example.com/services",
-				"content":   "# 服务管理\n服务管理页可通过服务名称搜索框定位服务，状态列表示当前运行状态。",
-			},
-		},
-	})
-	if docResponse.Code != http.StatusOK {
-		t.Fatalf("expected document status 200, got %d: %s", docResponse.Code, docResponse.Body.String())
-	}
-	var docBody struct {
-		DocumentIDs            []string `json:"documentIds"`
-		UpdatedBusinessProfile bool     `json:"updatedBusinessProfile"`
-	}
-	if err := json.Unmarshal(docResponse.Body.Bytes(), &docBody); err != nil {
-		t.Fatalf("decode document response failed: %v", err)
-	}
-	if len(docBody.DocumentIDs) != 1 || !docBody.UpdatedBusinessProfile {
-		t.Fatalf("unexpected document response: %#v", docBody)
-	}
 
 	observeResponse := performJSON(router, http.MethodPost, "/api/memory/page-observations", map[string]any{
 		"projectId":   "default",
@@ -115,23 +89,17 @@ func TestMemoryDocumentsAndContextRoutes(t *testing.T) {
 		t.Fatalf("expected context status 200, got %d: %s", contextResponse.Code, contextResponse.Body.String())
 	}
 	var contextBody struct {
-		ContextPrompt     string              `json:"contextPrompt"`
-		RecommendedMode   registry.MemoryMode `json:"recommendedMode"`
-		KnowledgeEvidence []map[string]any    `json:"knowledgeEvidence"`
-		BusinessContext   map[string]string   `json:"businessContext"`
-		EvidenceRefs      []map[string]any    `json:"evidenceRefs"`
+		ContextPrompt       string              `json:"contextPrompt"`
+		RecommendedMode     registry.MemoryMode `json:"recommendedMode"`
+		SiteTaskGuides      []map[string]any    `json:"siteTaskGuides"`
+		SiteManualKnowledge []map[string]any    `json:"siteManualKnowledge"`
+		EvidenceRefs        []map[string]any    `json:"evidenceRefs"`
 	}
 	if err := json.Unmarshal(contextResponse.Body.Bytes(), &contextBody); err != nil {
 		t.Fatalf("decode context response failed: %v", err)
 	}
 	if !strings.Contains(contextBody.ContextPrompt, "<webops_memory>") {
 		t.Fatalf("expected webops memory prompt: %s", contextBody.ContextPrompt)
-	}
-	if len(contextBody.KnowledgeEvidence) > 3 {
-		t.Fatalf("knowledge evidence should be capped: %#v", contextBody.KnowledgeEvidence)
-	}
-	if len(contextBody.EvidenceRefs) == 0 || contextBody.EvidenceRefs[0]["source"] == "" || contextBody.EvidenceRefs[0]["id"] == "" {
-		t.Fatalf("expected context evidence refs: %#v", contextBody.EvidenceRefs)
 	}
 }
 
@@ -149,14 +117,13 @@ func TestMemoryTaskRunsRouteConsolidates(t *testing.T) {
 	}
 	var body struct {
 		TaskRunID     string   `json:"taskRunId"`
-		ExperienceID  string   `json:"experienceId"`
 		OptimizedPath []string `json:"optimizedPath"`
 		MemoryUpdates []string `json:"memoryUpdates"`
 	}
 	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode response failed: %v", err)
 	}
-	if body.TaskRunID == "" || body.ExperienceID == "" || len(body.OptimizedPath) == 0 {
+	if body.TaskRunID == "" || len(body.OptimizedPath) == 0 {
 		t.Fatalf("unexpected consolidation response: %#v", body)
 	}
 }
@@ -263,6 +230,115 @@ func TestMemoryMaintenancePruneRouteDeletesOldLogRecords(t *testing.T) {
 	}
 }
 
+func TestMemoryMaintenancePruneUpdatesSiteGuideAndManualStatuses(t *testing.T) {
+	repo, err := registry.NewFileRepository(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewFileRepository failed: %v", err)
+	}
+	if err := repo.SaveSiteTaskGuide(nil, registry.SiteTaskGuide{
+		ID:            "guide_stale",
+		ProjectID:     "default",
+		Site:          "ops.example.com",
+		TaskIntentKey: "restore_instance",
+		Summary:       "Restore instance.",
+		Steps:         []registry.SiteTaskGuideStep{{Text: "Click Restore.", Target: "Restore"}},
+		UIStateEntries: []registry.SiteTaskGuideUIStateEntry{{
+			ID:        "state_restore",
+			Name:      "Restore page",
+			StateType: registry.SiteTaskGuideUIStatePage,
+			Evidence: registry.SiteTaskGuideUIStateEvidence{
+				ControlsAll: []registry.ControlSignature{{Role: "button", Name: "Restore"}},
+			},
+			MinimumScore: 1,
+		}},
+		Status:          registry.StatusActive,
+		MisleadingCount: 3,
+	}); err != nil {
+		t.Fatalf("SaveSiteTaskGuide failed: %v", err)
+	}
+	if err := repo.SaveSiteManualSource(nil, registry.SiteManualSource{
+		ID:          "manual_source_stale",
+		ProjectID:   "default",
+		Site:        "ops.example.com",
+		Title:       "Ops manual",
+		SourceType:  registry.SiteManualSourceMarkdown,
+		ContentHash: "hash_stale_manual",
+		RawContent:  "Click legacy restore.",
+		Status:      registry.StatusActive,
+	}); err != nil {
+		t.Fatalf("SaveSiteManualSource failed: %v", err)
+	}
+	if err := repo.SaveSiteManualWiki(nil, []registry.SiteManualWikiPage{{
+		ID:        "manual_page_stale",
+		ProjectID: "default",
+		Site:      "ops.example.com",
+		PageKey:   "restore",
+		Title:     "Restore",
+		Summary:   "Restore summary.",
+		SourceRefs: []registry.MemorySourceRef{{
+			Type: "site_manual_source",
+			ID:   "manual_source_stale",
+		}},
+		Status: registry.StatusActive,
+	}}, []registry.SiteManualWikiChunk{{
+		ID:         "manual_chunk_stale",
+		WikiPageID: "manual_page_stale",
+		ProjectID:  "default",
+		Site:       "ops.example.com",
+		ChunkType:  registry.SiteManualChunkProcedure,
+		Text:       "Click legacy restore.",
+		SourceRefs: []registry.MemorySourceRef{{
+			Type: "site_manual_source",
+			ID:   "manual_source_stale",
+		}},
+		Status: registry.StatusActive,
+	}}); err != nil {
+		t.Fatalf("SaveSiteManualWiki failed: %v", err)
+	}
+	if err := repo.SaveMemoryEvidenceStats(nil, registry.MemoryEvidenceStats{
+		ProjectID:      "default",
+		Site:           "ops.example.com",
+		EvidenceID:     "manual_chunk_stale",
+		EvidenceSource: registry.MemoryEvidenceSourceManual,
+		StaleCount:     3,
+	}); err != nil {
+		t.Fatalf("SaveMemoryEvidenceStats failed: %v", err)
+	}
+	router := NewRouterWithServices(config.Config{}, Services{Registry: repo})
+
+	response := performJSON(router, http.MethodPost, "/api/memory/maintenance/prune", map[string]any{
+		"projectId": "default",
+		"site":      "ops.example.com",
+	})
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected prune status 200, got %d: %s", response.Code, response.Body.String())
+	}
+	var body struct {
+		UpdatedSiteTaskGuides    int `json:"updatedSiteTaskGuides"`
+		UpdatedSiteManualSources int `json:"updatedSiteManualSources"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode prune response failed: %v", err)
+	}
+	if body.UpdatedSiteTaskGuides != 1 || body.UpdatedSiteManualSources != 1 {
+		t.Fatalf("expected site memory status updates, got %#v", body)
+	}
+	guide, err := repo.GetSiteTaskGuide(nil, "guide_stale")
+	if err != nil {
+		t.Fatalf("GetSiteTaskGuide failed: %v", err)
+	}
+	if guide.Status != registry.StatusHidden {
+		t.Fatalf("expected misleading guide to be hidden, got %#v", guide)
+	}
+	source, err := repo.GetSiteManualSource(nil, "manual_source_stale")
+	if err != nil {
+		t.Fatalf("GetSiteManualSource failed: %v", err)
+	}
+	if source.Status != registry.StatusStale {
+		t.Fatalf("expected stale manual source, got %#v", source)
+	}
+}
+
 func TestMemoryReviewsAndInspectorRoutes(t *testing.T) {
 	repo, err := registry.NewFileRepository(t.TempDir())
 	if err != nil {
@@ -291,6 +367,32 @@ func TestMemoryReviewsAndInspectorRoutes(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("SaveMemoryAttributionEvent failed: %v", err)
 	}
+	if err := repo.SaveMemoryAttributionEvent(nil, registry.MemoryAttributionEvent{
+		ID:             "attr_guide",
+		ProjectID:      "default",
+		Site:           "ops.example.com",
+		TaskRunID:      "task_run_inspector",
+		ContextID:      "ctx_inspector",
+		EvidenceID:     "guide_restore",
+		EvidenceSource: registry.MemoryEvidenceSourceGuide,
+		Label:          registry.MemoryAttributionUnused,
+		Signals:        []string{"pageRuleMismatch"},
+	}); err != nil {
+		t.Fatalf("SaveMemoryAttributionEvent guide failed: %v", err)
+	}
+	if err := repo.SaveMemoryAttributionEvent(nil, registry.MemoryAttributionEvent{
+		ID:             "attr_manual",
+		ProjectID:      "default",
+		Site:           "ops.example.com",
+		TaskRunID:      "task_run_inspector",
+		ContextID:      "ctx_inspector",
+		EvidenceID:     "manual_chunk_restore",
+		EvidenceSource: registry.MemoryEvidenceSourceManual,
+		Label:          registry.MemoryAttributionStale,
+		Signals:        []string{"pageRuleMismatch"},
+	}); err != nil {
+		t.Fatalf("SaveMemoryAttributionEvent manual failed: %v", err)
+	}
 	if err := repo.SaveMemoryEvidenceStats(nil, registry.MemoryEvidenceStats{
 		ProjectID:       "default",
 		Site:            "ops.example.com",
@@ -310,7 +412,20 @@ func TestMemoryReviewsAndInspectorRoutes(t *testing.T) {
 		CurrentSurface:   "surface_filter_drawer",
 		ContextPrompt:    "<webops_memory>Use service search.</webops_memory>",
 		RecommendedMode:  registry.MemoryModeGuided,
-		EvidenceRefs:     []registry.MemoryEvidenceRef{{ID: "exp_inspector", Source: registry.MemoryEvidenceSourceExperience}},
+		EvidenceRefs: []registry.MemoryEvidenceRef{
+			{ID: "exp_inspector", Source: registry.MemoryEvidenceSourceExperience},
+			{ID: "guide_restore", Source: registry.MemoryEvidenceSourceGuide, Reason: "Matched guide."},
+			{ID: "manual_chunk_restore", Source: registry.MemoryEvidenceSourceManual, Reason: "Matched manual."},
+		},
+		Payload: map[string]any{
+			"pageObservationSignal": map[string]any{
+				"site":  "ops.example.com",
+				"title": "服务管理",
+			},
+			"debug": map[string]any{
+				"filteredEvidence": []map[string]any{{"source": "manual", "reason": "page_guard_failed"}},
+			},
+		},
 	}); err != nil {
 		t.Fatalf("SaveMemoryContextEvent failed: %v", err)
 	}
@@ -335,15 +450,33 @@ func TestMemoryReviewsAndInspectorRoutes(t *testing.T) {
 	if _, ok := body["reviews"]; !ok {
 		t.Fatalf("expected reviews in inspector: %#v", body)
 	}
-	if events, ok := body["attributionEvents"].([]any); !ok || len(events) != 1 {
+	if events, ok := body["attributionEvents"].([]any); !ok || len(events) != 2 {
 		t.Fatalf("expected attribution events in inspector: %#v", body)
 	}
-	if stats, ok := body["evidenceStats"].([]any); !ok || len(stats) != 1 {
+	if stats, ok := body["evidenceStats"].([]any); !ok || len(stats) != 0 {
 		t.Fatalf("expected evidence stats in inspector: %#v", body)
 	}
 	contextEvent, ok := body["contextEvent"].(map[string]any)
 	if !ok || !strings.Contains(contextEvent["contextPrompt"].(string), "<webops_memory>") {
 		t.Fatalf("expected context prompt in inspector: %#v", body)
+	}
+	if signal, ok := body["pageObservationSignal"].(map[string]any); !ok || signal["site"] != "ops.example.com" {
+		t.Fatalf("expected page observation signal in inspector: %#v", body)
+	}
+	if guides, ok := body["candidateSiteTaskGuides"].([]any); !ok || len(guides) != 1 {
+		t.Fatalf("expected candidate guides in inspector: %#v", body)
+	}
+	if manuals, ok := body["candidateSiteManualKnowledge"].([]any); !ok || len(manuals) != 1 {
+		t.Fatalf("expected candidate manuals in inspector: %#v", body)
+	}
+	if filtered, ok := body["filteredEvidence"].([]any); !ok || len(filtered) != 1 {
+		t.Fatalf("expected filtered evidence in inspector: %#v", body)
+	}
+	if guideFeedback, ok := body["guideFeedback"].([]any); !ok || len(guideFeedback) != 1 {
+		t.Fatalf("expected guide feedback in inspector: %#v", body)
+	}
+	if manualFeedback, ok := body["manualFeedback"].([]any); !ok || len(manualFeedback) != 1 {
+		t.Fatalf("expected manual feedback in inspector: %#v", body)
 	}
 }
 

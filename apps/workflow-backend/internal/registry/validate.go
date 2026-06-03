@@ -99,23 +99,6 @@ func ValidateWorkflowCard(card WorkflowCard) error {
 
 func ValidateMemoryRecord(record any) error {
 	switch value := record.(type) {
-	case BusinessSystemProfile:
-		if value.ProjectID == "" {
-			return errors.New("project id is required")
-		}
-		if err := validateSafeSummary("business system profile summary", value.Summary); err != nil {
-			return err
-		}
-		for _, module := range value.Modules {
-			if err := validateSafeSummary("business module purpose", module.Purpose); err != nil {
-				return err
-			}
-		}
-		for _, term := range value.Terms {
-			if err := validateSafeSummary("business term", term); err != nil {
-				return err
-			}
-		}
 	case ExperienceMemory:
 		if value.ProjectID == "" {
 			return errors.New("project id is required")
@@ -158,6 +141,219 @@ func ValidateMemoryRecord(record any) error {
 	return nil
 }
 
+func ValidateSiteManualImport(request SiteManualImportRequest) error {
+	if strings.TrimSpace(request.ProjectID) == "" {
+		return errors.New("project id is required")
+	}
+	if strings.TrimSpace(request.Site) == "" {
+		return errors.New("site is required")
+	}
+	if strings.TrimSpace(request.Content) == "" {
+		return errors.New("content is required")
+	}
+	if !validSiteManualSourceType(request.SourceType) {
+		return errors.New("source type is invalid")
+	}
+	return nil
+}
+
+func ValidateSiteManualSource(source SiteManualSource) error {
+	if strings.TrimSpace(source.ProjectID) == "" {
+		return errors.New("project id is required")
+	}
+	if strings.TrimSpace(source.Site) == "" {
+		return errors.New("site is required")
+	}
+	if strings.TrimSpace(source.ContentHash) == "" {
+		return errors.New("content hash is required")
+	}
+	if strings.TrimSpace(source.RawContent) == "" {
+		return errors.New("raw content is required")
+	}
+	if !validSiteManualSourceType(source.SourceType) {
+		return errors.New("source type is invalid")
+	}
+	return nil
+}
+
+func ValidateSiteManualWikiPage(page SiteManualWikiPage) error {
+	if strings.TrimSpace(page.ProjectID) == "" {
+		return errors.New("project id is required")
+	}
+	if strings.TrimSpace(page.Site) == "" {
+		return errors.New("site is required")
+	}
+	if strings.TrimSpace(page.PageKey) == "" {
+		return errors.New("page key is required")
+	}
+	if err := validateSafeSummary("site manual wiki summary", page.Summary); err != nil {
+		return err
+	}
+	for _, fact := range page.Facts {
+		if err := validateSafeSummary("site manual fact", fact); err != nil {
+			return err
+		}
+	}
+	for _, procedure := range page.Procedures {
+		if err := validateSafeSummary("site manual procedure", procedure); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func ValidateSiteManualWikiChunk(chunk SiteManualWikiChunk) error {
+	if strings.TrimSpace(chunk.ProjectID) == "" {
+		return errors.New("project id is required")
+	}
+	if strings.TrimSpace(chunk.Site) == "" {
+		return errors.New("site is required")
+	}
+	if strings.TrimSpace(chunk.WikiPageID) == "" {
+		return errors.New("wiki page id is required")
+	}
+	if err := validateSafeSummary("site manual chunk text", chunk.Text); err != nil {
+		return err
+	}
+	return nil
+}
+
+func ValidateSiteTaskGuide(guide SiteTaskGuide) error {
+	if strings.TrimSpace(guide.ProjectID) == "" {
+		return errors.New("project id is required")
+	}
+	if strings.TrimSpace(guide.Site) == "" {
+		return errors.New("site is required")
+	}
+	if strings.TrimSpace(guide.TaskIntentKey) == "" {
+		return errors.New("task intent key is required")
+	}
+	if err := validateSafeSummary("site task guide summary", guide.Summary); err != nil {
+		return err
+	}
+	if looksLikeDynamicTarget(guide.Summary) {
+		return errors.New("site task guide summary contains dynamic target")
+	}
+	if guide.Status == "" || guide.Status == StatusActive {
+		if len(guide.UIStateEntries) == 0 {
+			return errors.New("active site task guide requires ui state entries")
+		}
+	}
+	for _, term := range guide.TaskIntentTerms.Positive {
+		if err := validateSafeSummary("site task guide positive intent term", term); err != nil {
+			return err
+		}
+	}
+	for _, term := range guide.TaskIntentTerms.Negative {
+		if err := validateSafeSummary("site task guide negative intent term", term); err != nil {
+			return err
+		}
+	}
+	for _, state := range guide.UIStateEntries {
+		if err := validateSiteTaskGuideUIStateEntry(state); err != nil {
+			return err
+		}
+	}
+	for _, step := range guide.Steps {
+		if err := validateSafeSummary("site task guide step", step.Text); err != nil {
+			return err
+		}
+		if looksLikeDynamicTarget(step.Text) ||
+			looksLikeDynamicTarget(step.Target) ||
+			looksLikeDynamicTarget(step.SemanticTarget.Text) ||
+			looksLikeDynamicTarget(step.SemanticTarget.ContainerHint) {
+			return errors.New("site task guide step contains dynamic target")
+		}
+		if err := validateControlSignatureList("site task guide expected outcome control", step.ExpectedOutcome.ControlsAll); err != nil {
+			return err
+		}
+		if err := validateControlSignatureList("site task guide expected outcome control", step.ExpectedOutcome.ControlsAny); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateSiteTaskGuideUIStateEntry(state SiteTaskGuideUIStateEntry) error {
+	if strings.TrimSpace(state.ID) == "" {
+		return errors.New("ui state id is required")
+	}
+	if strings.TrimSpace(string(state.StateType)) == "" {
+		return errors.New("ui state type is required")
+	}
+	for _, value := range append([]string{state.Name}, state.Evidence.TitleAny...) {
+		if err := validateSafeSummary("ui state evidence", value); err != nil {
+			return err
+		}
+		if looksLikeDynamicTarget(value) {
+			return errors.New("ui state evidence contains dynamic target")
+		}
+	}
+	textGroups := [][]string{
+		state.Evidence.BreadcrumbAny,
+		state.Evidence.ActiveTabAny,
+		state.Evidence.TextAll,
+		state.Evidence.TextAny,
+		state.Evidence.NegativeTextAny,
+	}
+	for _, group := range textGroups {
+		for _, value := range group {
+			if err := validateSafeSummary("ui state evidence", value); err != nil {
+				return err
+			}
+			if looksLikeDynamicTarget(value) {
+				return errors.New("ui state evidence contains dynamic target")
+			}
+		}
+	}
+	for _, headers := range state.Evidence.TableHeadersAny {
+		for _, value := range headers {
+			if err := validateSafeSummary("ui state table header", value); err != nil {
+				return err
+			}
+		}
+	}
+	if err := validateControlSignatureList("ui state required control", state.Evidence.ControlsAll); err != nil {
+		return err
+	}
+	if err := validateControlSignatureList("ui state optional control", state.Evidence.ControlsAny); err != nil {
+		return err
+	}
+	if err := validateControlSignatureList("ui state negative control", state.Evidence.NegativeControlsAny); err != nil {
+		return err
+	}
+	for _, surface := range state.Evidence.ActiveSurfacesAny {
+		if err := validateSafeSummary("ui state active surface title", surface.Title); err != nil {
+			return err
+		}
+		if err := validateControlSignatureList("ui state active surface control", surface.Controls); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateControlSignatureList(label string, controls []ControlSignature) error {
+	for _, control := range controls {
+		if err := validateSafeSummary(label, strings.TrimSpace(control.Role+" "+control.Name)); err != nil {
+			return err
+		}
+		if looksLikeDynamicTarget(control.Name) {
+			return fmt.Errorf("%s contains dynamic target", label)
+		}
+	}
+	return nil
+}
+
+func validSiteManualSourceType(sourceType SiteManualSourceType) bool {
+	switch sourceType {
+	case SiteManualSourceMarkdown, SiteManualSourceHTML, SiteManualSourcePDFText, SiteManualSourceText:
+		return true
+	default:
+		return false
+	}
+}
+
 func validateSafeSummary(label, value string) error {
 	if err := ValidateSummaryLength(value); err != nil {
 		return fmt.Errorf("%s %w", label, err)
@@ -196,4 +392,13 @@ func looksLikeNonTemplateInstanceValue(value string) bool {
 		return true
 	}
 	return strings.Contains(value, "?") && strings.Contains(value, "=")
+}
+
+func looksLikeDynamicTarget(value string) bool {
+	value = strings.ToLower(strings.TrimSpace(value))
+	if value == "" {
+		return false
+	}
+	return regexp.MustCompile(`\b(element|index)[_-]?\d+\b`).MatchString(value) ||
+		regexp.MustCompile(`\bindex\s*=\s*\d+\b`).MatchString(value)
 }

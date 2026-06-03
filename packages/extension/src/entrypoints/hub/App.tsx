@@ -1,17 +1,23 @@
-import { FoldVertical, Plug, PlugZap, Square, UnfoldVertical, Unplug } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { BookOpen, FoldVertical, Plug, PlugZap, Square, UnfoldVertical, Unplug } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { useAgent } from '@/agent/useAgent'
+import { SiteManualLibrary } from '@/components/SiteManualLibrary'
 import { ActivityCard, EventCard } from '@/components/cards'
 import { Logo, MotionOverlay, StatusDot } from '@/components/misc'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
+import { SiteManualClient } from '@/webops/site-manuals/SiteManualClient'
 
 import { useHubWs } from './hub-ws'
 
 export default function App() {
 	const { status, history, activity, currentTask, config, execute, stop, configure } = useAgent()
 	const { wsState } = useHubWs(execute, stop, configure, config)
+	const initialParams = new URLSearchParams(location.search)
+	const [view, setView] = useState<'session' | 'site-manuals'>(() =>
+		initialParams.get('view') === 'site-manuals' ? 'site-manuals' : 'session'
+	)
 
 	const historyRef = useRef<HTMLDivElement>(null)
 
@@ -26,8 +32,19 @@ export default function App() {
 	const wsLabel = {
 		connected: 'Connected',
 		connecting: 'Connecting…',
-		disconnected: new URLSearchParams(location.search).get('ws') ? 'Disconnected' : 'No connection',
+		disconnected: initialParams.get('ws') ? 'Disconnected' : 'No connection',
 	}[wsState]
+	const siteManualClient = useMemo(
+		() =>
+			config?.workflowBackend?.baseUrl
+				? new SiteManualClient({
+						baseUrl: config.workflowBackend.baseUrl,
+						bearerToken: config.workflowBackend.apiKey,
+					})
+				: undefined,
+		[config?.workflowBackend?.apiKey, config?.workflowBackend?.baseUrl]
+	)
+	const projectId = config?.workflowBackend?.projectId ?? 'default'
 
 	return (
 		<div className="flex h-screen bg-background">
@@ -64,6 +81,29 @@ export default function App() {
 							</a>
 							.
 						</p>
+					</div>
+
+					<div className="grid gap-2">
+						<Button
+							type="button"
+							variant={view === 'session' ? 'default' : 'outline'}
+							size="sm"
+							onClick={() => setView('session')}
+							className="h-8 justify-start text-xs"
+						>
+							<WsIcon className="size-3" />
+							Live Session
+						</Button>
+						<Button
+							type="button"
+							variant={view === 'site-manuals' ? 'default' : 'outline'}
+							size="sm"
+							onClick={() => setView('site-manuals')}
+							className="h-8 justify-start text-xs"
+						>
+							<BookOpen className="size-3" />
+							Site Manual Library
+						</Button>
 					</div>
 
 					<HubConfig />
@@ -107,37 +147,54 @@ export default function App() {
 					</div>
 				</header>
 
-				{/* Task banner */}
-				{currentTask && (
-					<div className="border-b px-5 py-2 bg-muted/30">
-						<div className="text-[10px] text-muted-foreground uppercase tracking-wide">
-							Current Task
+				{view === 'site-manuals' ? (
+					siteManualClient ? (
+						<SiteManualLibrary
+							client={siteManualClient}
+							projectId={projectId}
+							defaultSite={initialParams.get('site') ?? undefined}
+							defaultUrl={initialParams.get('url') ?? undefined}
+						/>
+					) : (
+						<div className="flex flex-1 items-center justify-center p-6 text-sm text-muted-foreground">
+							Configure Workflow Memory Backend before managing site manuals.
 						</div>
-						<div className="text-sm font-medium truncate" title={currentTask}>
-							{currentTask}
+					)
+				) : (
+					<>
+						{/* Task banner */}
+						{currentTask && (
+							<div className="border-b px-5 py-2 bg-muted/30">
+								<div className="text-[10px] text-muted-foreground uppercase tracking-wide">
+									Current Task
+								</div>
+								<div className="text-sm font-medium truncate" title={currentTask}>
+									{currentTask}
+								</div>
+							</div>
+						)}
+
+						{/* Event stream */}
+						<div ref={historyRef} className="flex-1 overflow-y-auto p-5 space-y-2">
+							{!currentTask && history.length === 0 && !isRunning && (
+								<div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-3">
+									<WsIcon className="size-10 opacity-30" />
+									<p className="text-sm">
+										{wsState === 'connected'
+											? 'Waiting for task from external caller…'
+											: 'No active session'}
+									</p>
+								</div>
+							)}
+
+							{history.map((event, index) => (
+								<EventCard key={index} event={event} />
+							))}
+
+							{activity && <ActivityCard activity={activity} />}
 						</div>
-					</div>
+					</>
 				)}
-
-				{/* Event stream */}
-				<div ref={historyRef} className="flex-1 overflow-y-auto p-5 space-y-2">
-					{!currentTask && history.length === 0 && !isRunning && (
-						<div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-3">
-							<WsIcon className="size-10 opacity-30" />
-							<p className="text-sm">
-								{wsState === 'connected'
-									? 'Waiting for task from external caller…'
-									: 'No active session'}
-							</p>
-						</div>
-					)}
-
-					{history.map((event, index) => (
-						<EventCard key={index} event={event} />
-					))}
-
-					{activity && <ActivityCard activity={activity} />}
-				</div>
 			</main>
 		</div>
 	)

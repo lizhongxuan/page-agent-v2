@@ -16,6 +16,7 @@ type MemoryConsolidationService struct {
 type ConsolidationResult struct {
 	TaskRunID              string   `json:"taskRunId"`
 	ExperienceID           string   `json:"experienceId,omitempty"`
+	SiteTaskGuideID        string   `json:"siteTaskGuideId,omitempty"`
 	FailureMemoryID        string   `json:"failureMemoryId,omitempty"`
 	OptimizedPath          []string `json:"optimizedPath,omitempty"`
 	BranchNoise            []string `json:"branchNoise,omitempty"`
@@ -65,13 +66,12 @@ func (service *MemoryConsolidationService) ConsolidateTaskRun(ctx context.Contex
 	}
 	switch run.Status {
 	case registry.TaskRunSuccess:
-		experience, err := service.experience.UpsertExperienceFromTaskRun(ctx, run)
-		if err != nil {
+		if guide, generated, err := NewSiteTaskGuideService(service.repo).UpsertGuideFromTaskRun(ctx, run); err != nil {
 			return ConsolidationResult{}, err
+		} else if generated {
+			result.SiteTaskGuideID = guide.ID
+			result.MemoryUpdates = append(result.MemoryUpdates, "updated_site_task_guide")
 		}
-		result.ExperienceID = experience.ID
-		result.ReviewRequired = experience.ReviewStatus == registry.ReviewStatusPending
-		result.MemoryUpdates = append(result.MemoryUpdates, "updated_experience_memory")
 		if err := incrementTransitionCounts(ctx, service.repo, run, true); err != nil {
 			return ConsolidationResult{}, err
 		}

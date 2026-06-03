@@ -11,10 +11,6 @@ import type {
 import type { LLMConfig } from '@page-agent/llms'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import {
-	type KnowledgeSettings,
-	defaultKnowledgeSettings,
-} from '@/webops/knowledge/KnowledgeSettings'
 import type { RecordedSession } from '@/webops/recorder/actionEvents'
 
 import { MultiPageAgent } from './MultiPageAgent'
@@ -40,7 +36,6 @@ export interface AdvancedConfig {
 
 export interface ExtConfig extends LLMConfig, AdvancedConfig {
 	language?: LanguagePreference
-	knowledgeSettings?: KnowledgeSettings
 	workflowBackend?: {
 		baseUrl?: string
 		apiKey?: string
@@ -96,13 +91,11 @@ export function useAgent(): UseAgentResult {
 
 	useEffect(() => {
 		chrome.storage.local
-			.get(['llmConfig', 'language', 'advancedConfig', 'knowledgeSettings', 'workflowBackend'])
+			.get(['llmConfig', 'language', 'advancedConfig', 'workflowBackend'])
 			.then((result) => {
 				let llmConfig = (result.llmConfig as LLMConfig) ?? DEMO_CONFIG
 				const language = (result.language as SupportedLanguage) || undefined
 				const advancedConfig = (result.advancedConfig as AdvancedConfig) ?? {}
-				const knowledgeSettings =
-					(result.knowledgeSettings as KnowledgeSettings | undefined) ?? defaultKnowledgeSettings
 				const workflowBackend = result.workflowBackend as ExtConfig['workflowBackend']
 
 				// Auto-migrate legacy testing endpoints
@@ -114,7 +107,7 @@ export function useAgent(): UseAgentResult {
 					chrome.storage.local.set({ llmConfig: DEMO_CONFIG })
 				}
 
-				setConfig({ ...llmConfig, ...advancedConfig, language, knowledgeSettings, workflowBackend })
+				setConfig({ ...llmConfig, ...advancedConfig, language, workflowBackend })
 			})
 	}, [])
 
@@ -221,14 +214,11 @@ export function useAgent(): UseAgentResult {
 			experimentalLlmsTxt,
 			experimentalIncludeAllTabs,
 			disableNamedToolChoice,
-			knowledgeSettings,
 			workflowBackend,
 			...llmConfig
 		}: ExtConfig) => {
 			await chrome.storage.local.set({ llmConfig })
-			await chrome.storage.local.set({
-				knowledgeSettings: knowledgeSettings ?? defaultKnowledgeSettings,
-			})
+			await chrome.storage.local.remove('knowledgeSettings')
 			if (workflowBackend?.baseUrl) {
 				await chrome.storage.local.set({ workflowBackend })
 			} else {
@@ -251,7 +241,6 @@ export function useAgent(): UseAgentResult {
 				...llmConfig,
 				...advancedConfig,
 				language,
-				knowledgeSettings: knowledgeSettings ?? defaultKnowledgeSettings,
 				workflowBackend: workflowBackend?.baseUrl ? workflowBackend : undefined,
 			})
 		},

@@ -41,16 +41,15 @@ describe('MemoryContextProvider', () => {
 		])
 	})
 
-	it('prefers backend evidenceRefs without rebuilding evidence from legacy fields', async () => {
+	it('prefers backend evidenceRefs without rebuilding evidence from removed fields', async () => {
 		const client: MemoryClientLike = {
 			getContext: async () => ({
 				contextId: 'ctx_1',
 				contextPrompt: '<webops_memory>Use service search.</webops_memory>',
 				evidenceRefs: [
-					{ source: 'knowledge', id: 'chunk_1', rank: 1, score: 0.97 },
+					{ source: 'manual', id: 'chunk_1', rank: 1, score: 0.97 },
 					{ source: 'experience', id: 'exp_2', rank: 2, score: 0.88 },
 				],
-				knowledgeEvidence: [{ chunkId: 'legacy_chunk', title: 'Legacy chunk', score: 0.4 }],
 			}),
 		}
 		const provider = new MemoryContextProvider(client)
@@ -65,7 +64,7 @@ describe('MemoryContextProvider', () => {
 
 		expect(result.response?.contextId).toBe('ctx_1')
 		expect(result.evidence).toEqual([
-			{ source: 'knowledge', id: 'chunk_1', rank: 1, score: 0.97 },
+			{ source: 'manual', id: 'chunk_1', rank: 1, score: 0.97 },
 			{ source: 'experience', id: 'exp_2', rank: 2, score: 0.88 },
 		])
 	})
@@ -93,8 +92,8 @@ describe('MemoryContextProvider', () => {
 	it('does not synthesize compatibility evidence when backend evidenceRefs are missing', async () => {
 		const client: MemoryClientLike = {
 			getContext: async () => ({
-				knowledgeEvidence: [{ chunkId: 'chunk_1', title: 'Knowledge item', score: 0.9 }],
-				experienceHints: [{ id: 'exp_1', summary: 'Use search first', confidence: 0.8 }],
+				siteManualKnowledge: [{ id: 'chunk_1', summary: 'Use search first', confidence: 0.9 }],
+				siteTaskGuides: [{ id: 'exp_1', summary: 'Use search first', confidence: 0.8 }],
 				failureWarnings: [{ id: 'fail_1', summary: 'Avoid archived services' }],
 			}),
 		}

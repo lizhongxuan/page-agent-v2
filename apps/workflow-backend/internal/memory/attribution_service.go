@@ -95,6 +95,7 @@ func (service *AttributionService) EvaluateAndPersist(ctx context.Context, input
 	if service.repo == nil {
 		return AttributionResult{Events: events}, errors.New("workflow registry is not configured")
 	}
+	refs := attributionEvidenceRefs(input)
 	stats := make([]registry.MemoryEvidenceStats, 0, len(events))
 	for _, event := range events {
 		if err := service.repo.SaveMemoryAttributionEvent(ctx, event); err != nil {
@@ -102,6 +103,9 @@ func (service *AttributionService) EvaluateAndPersist(ctx context.Context, input
 		}
 		updated, err := service.updateEvidenceStats(ctx, input.TaskRun, event)
 		if err != nil {
+			return AttributionResult{}, err
+		}
+		if err := service.updateSiteTaskGuideFeedback(ctx, input.TaskRun, event, findAttributionEvidenceRef(refs, event)); err != nil {
 			return AttributionResult{}, err
 		}
 		stats = append(stats, updated)
@@ -143,6 +147,65 @@ func (service *AttributionService) updateEvidenceStats(ctx context.Context, run 
 		return registry.MemoryEvidenceStats{}, err
 	}
 	return stats, nil
+}
+
+func (service *AttributionService) updateSiteTaskGuideFeedback(ctx context.Context, run registry.TaskRun, event registry.MemoryAttributionEvent, ref registry.MemoryEvidenceRef) error {
+	if event.EvidenceSource != registry.MemoryEvidenceSourceGuide {
+		return nil
+	}
+	label, ok := siteTaskGuideFeedbackLabel(event)
+	if !ok {
+		return nil
+	}
+	if _, ok := service.repo.(registry.SiteTaskGuideRepository); !ok {
+		return nil
+	}
+	serviceWithGuide := NewSiteTaskGuideService(service.repo)
+	matchedStepCount := 0
+	if event.Adoption.AdoptedTarget {
+		matchedStepCount = 1
+	}
+	backtrackCount := 0
+	if event.Adoption.CausedBacktrack {
+		backtrackCount = 1
+	}
+	stateID := evidenceMatchedStateID(ref)
+	feedbackID := strings.Join([]string{
+		"guide_feedback",
+		firstNonEmpty(run.ID, "run"),
+		firstNonEmpty(event.ContextID, "ctx"),
+		event.EvidenceID,
+		firstNonEmpty(stateID, "guide"),
+		string(label),
+	}, "_")
+	return serviceWithGuide.ApplyFeedback(ctx, event.EvidenceID, registry.SiteTaskGuideFeedback{
+		ID:               feedbackID,
+		StateID:          stateID,
+		TaskRunID:        run.ID,
+		ContextID:        event.ContextID,
+		Label:            label,
+		Reason:           event.Reason,
+		MatchedStepCount: matchedStepCount,
+		BacktrackCount:   backtrackCount,
+	})
+}
+
+func siteTaskGuideFeedbackLabel(event registry.MemoryAttributionEvent) (registry.SiteTaskGuideFeedbackLabel, bool) {
+	if containsString(event.Signals, SignalPageRuleMismatch) {
+		return registry.SiteTaskGuideFeedbackAbandonedMismatch, true
+	}
+	switch event.Label {
+	case registry.MemoryAttributionHelpful:
+		return registry.SiteTaskGuideFeedbackUsedHelpful, true
+	case registry.MemoryAttributionUnused:
+		return registry.SiteTaskGuideFeedbackUnused, true
+	case registry.MemoryAttributionMisleading:
+		return registry.SiteTaskGuideFeedbackUsedMisleading, true
+	case registry.MemoryAttributionStale:
+		return registry.SiteTaskGuideFeedbackStale, true
+	default:
+		return "", false
+	}
 }
 
 func (service *AttributionService) evidenceSignals(input AttributionInput, ref registry.MemoryEvidenceRef) []string {
@@ -190,6 +253,22 @@ func attributionEvidenceRefs(input AttributionInput) []registry.MemoryEvidenceRe
 	default:
 		return input.ContextEvent.EvidenceRefs
 	}
+}
+
+func findAttributionEvidenceRef(refs []registry.MemoryEvidenceRef, event registry.MemoryAttributionEvent) registry.MemoryEvidenceRef {
+	for _, ref := range refs {
+		if ref.ID == event.EvidenceID && ref.Source == event.EvidenceSource {
+			return ref
+		}
+	}
+	return registry.MemoryEvidenceRef{}
+}
+
+func evidenceMatchedStateID(ref registry.MemoryEvidenceRef) string {
+	return firstNonEmpty(
+		payloadString(ref.Payload, "matchedStateId"),
+		payloadString(ref.Payload, "stateId"),
+	)
 }
 
 func attributionLabel(run registry.TaskRun, signals []string) registry.MemoryAttributionLabel {

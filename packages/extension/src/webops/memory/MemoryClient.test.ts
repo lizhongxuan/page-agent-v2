@@ -61,6 +61,11 @@ describe('MemoryClient', () => {
 				title: '服务管理',
 				visibleText: ['服务列表'],
 				controls: [{ role: 'button', name: '搜索' }],
+				activeTabs: ['运行状态'],
+				tables: [{ headers: ['服务名称', '状态', '操作'] }],
+				activeSurfaces: [
+					{ surfaceType: 'modal', title: '确认', controls: [{ role: 'button', name: '确定' }] },
+				],
 			},
 		})
 
@@ -68,6 +73,11 @@ describe('MemoryClient', () => {
 		expect(JSON.parse(calls[0]?.init?.body as string).currentUrl).toBe(
 			'https://ops.example.test/service'
 		)
+		expect(JSON.parse(calls[0]?.init?.body as string).pageObservation).toMatchObject({
+			activeTabs: ['运行状态'],
+			tables: [{ headers: ['服务名称', '状态', '操作'] }],
+			activeSurfaces: [{ surfaceType: 'modal', title: '确认' }],
+		})
 		expect(response.evidenceRefs?.[0]?.id).toBe('ev-1')
 	})
 
@@ -94,27 +104,10 @@ describe('MemoryClient', () => {
 		expect(JSON.parse(calls[0]?.init?.body as string).status).toBe('success')
 	})
 
-	it('posts imported documents to the memory endpoint', async () => {
-		const calls: { url: string | URL | Request; init?: RequestInit }[] = []
-		vi.stubGlobal('fetch', async (url: string | URL | Request, init?: RequestInit) => {
-			calls.push({ url, init })
-			return jsonResponse({ ok: true, imported: 1 })
-		})
-
+	it('does not expose the old document import endpoint', () => {
 		const client = new MemoryClient({ baseUrl: 'https://memory.example.test' })
-		await client.importDocuments({
-			projectId: 'default',
-			documents: [
-				{
-					title: 'Runbook',
-					source: 'runbook.md',
-					content: 'Use the service search field.',
-				},
-			],
-		})
 
-		expect(calls[0]?.url).toBe('https://memory.example.test/api/memory/documents')
-		expect(JSON.parse(calls[0]?.init?.body as string).documents[0].title).toBe('Runbook')
+		expect('importDocuments' in client).toBe(false)
 	})
 })
 

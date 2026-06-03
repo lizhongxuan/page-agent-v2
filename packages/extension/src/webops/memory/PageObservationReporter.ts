@@ -28,6 +28,10 @@ export class PageObservationReporter {
 			title: input.pageObservation.title,
 			visibleText: input.allowPageSummary ? input.pageObservation.visibleText : [],
 			controls: input.pageObservation.controls,
+			breadcrumbs: input.pageObservation.breadcrumbs,
+			activeTabs: input.pageObservation.activeTabs,
+			tables: input.pageObservation.tables,
+			activeSurfaces: input.pageObservation.activeSurfaces,
 		}
 
 		try {

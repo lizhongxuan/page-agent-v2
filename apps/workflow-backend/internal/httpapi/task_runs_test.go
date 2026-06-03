@@ -1,22 +1,5 @@
 package httpapi
 
-import (
-	"net/http"
-	"testing"
-
-	"github.com/page-agent/workflow-backend/internal/config"
-)
-
-func TestLegacyTaskRunRoutesReturnGoneWithMigrationHints(t *testing.T) {
-	router := NewRouterWithServices(config.Config{}, Services{})
-
-	createResponse := performJSON(router, http.MethodPost, "/api/task-runs", sampleTaskRunBody())
-	assertGoneWithMigration(t, createResponse, "/api/memory/task-runs")
-
-	getResponse := performJSON(router, http.MethodGet, "/api/task-runs/task_run_1", nil)
-	assertGoneWithMigration(t, getResponse, "/api/memory/task-runs")
-}
-
 func sampleTaskRunBody() map[string]any {
 	return map[string]any{
 		"projectId":     "default",

@@ -17,6 +17,7 @@ import (
 func main() {
 	cfg := config.Load()
 	ctx := context.Background()
+	log.Printf("workflow backend storage=%s postgresURLConfigured=%t dataDir=%s", cfg.StorageBackend, cfg.PostgresURL != "", cfg.DataDir)
 	repo, err := buildRepository(ctx, cfg)
 	if err != nil {
 		log.Fatal(err)

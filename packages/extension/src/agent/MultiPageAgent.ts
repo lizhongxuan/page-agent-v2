@@ -6,10 +6,6 @@ import {
 	PageAgentCore,
 } from '@page-agent/core'
 
-import {
-	type KnowledgeSettings,
-	defaultKnowledgeSettings,
-} from '@/webops/knowledge/KnowledgeSettings'
 import { MemoryClient } from '@/webops/memory/MemoryClient'
 import { MemoryContextProvider } from '@/webops/memory/MemoryContextProvider'
 import { PageObservationReporter } from '@/webops/memory/PageObservationReporter'
@@ -24,7 +20,7 @@ import type {
 import type { RecordedMemoryContext, RecordedSession } from '@/webops/recorder/actionEvents'
 import { isRedactedValue } from '@/webops/recorder/redaction'
 import {
-	addWebOpsKnowledgeHits,
+	addWebOpsMemoryHits,
 	finishWebOpsSession,
 	recordWebOpsAction,
 	setWebOpsMemoryContext,
@@ -54,7 +50,6 @@ function detectLanguage(): 'en-US' | 'zh-CN' {
 interface MultiPageAgentConfig extends AgentConfig {
 	includeInitialTab?: boolean
 	experimentalIncludeAllTabs?: boolean
-	knowledgeSettings?: KnowledgeSettings
 	workflowBackend?: {
 		baseUrl?: string
 		apiKey?: string
@@ -93,6 +88,10 @@ export class MultiPageAgent extends PageAgentCore {
 			title: tabInfo.title,
 			visibleText: elements.visibleText,
 			controls: elements.controls,
+			breadcrumbs: elements.breadcrumbs,
+			activeTabs: elements.activeTabs,
+			tables: elements.tables,
+			activeSurfaces: elements.activeSurfaces,
 		}
 	}
 
@@ -151,6 +150,10 @@ export class MultiPageAgent extends PageAgentCore {
 					title: tabInfo.title,
 					visibleText: elements.visibleText,
 					controls: elements.controls,
+					breadcrumbs: elements.breadcrumbs,
+					activeTabs: elements.activeTabs,
+					tables: elements.tables,
+					activeSurfaces: elements.activeSurfaces,
 				}
 
 				startWebOpsSession({
@@ -165,7 +168,6 @@ export class MultiPageAgent extends PageAgentCore {
 				const memoryClient = createMemoryClient(config.workflowBackend)
 				if (memoryClient) {
 					const projectId = config.workflowBackend?.projectId || 'default'
-					const knowledgeSettings = config.knowledgeSettings ?? defaultKnowledgeSettings
 					const observationResponse = await new PageObservationReporter(memoryClient).report({
 						projectId,
 						task: agent.task,
@@ -174,8 +176,12 @@ export class MultiPageAgent extends PageAgentCore {
 							title: pageObservation.title,
 							visibleText: pageObservation.visibleText,
 							controls: pageObservation.controls,
+							breadcrumbs: pageObservation.breadcrumbs,
+							activeTabs: pageObservation.activeTabs,
+							tables: pageObservation.tables,
+							activeSurfaces: pageObservation.activeSurfaces,
 						},
-						allowPageSummary: knowledgeSettings.enabled && knowledgeSettings.allowPageSummary,
+						allowPageSummary: true,
 					})
 					if (observationResponse?.pageStateId) {
 						pageStateAliases[pageStateID(tabInfo.url, '')] = observationResponse.pageStateId
@@ -192,6 +198,10 @@ export class MultiPageAgent extends PageAgentCore {
 								title: pageObservation.title,
 								visibleText: pageObservation.visibleText,
 								controls: pageObservation.controls,
+								breadcrumbs: pageObservation.breadcrumbs,
+								activeTabs: pageObservation.activeTabs,
+								tables: pageObservation.tables,
+								activeSurfaces: pageObservation.activeSurfaces,
 							},
 						})
 						pendingMemoryContext = memory.promptContext
@@ -205,7 +215,7 @@ export class MultiPageAgent extends PageAgentCore {
 								toRecordedMemoryContext(memory.response, memory.promptContext, memoryEvidenceRefs)
 							)
 						}
-						addWebOpsKnowledgeHits(
+						addWebOpsMemoryHits(
 							memoryEvidenceRefs.map((item) => ({
 								id: item.id,
 								title: item.title || item.source,

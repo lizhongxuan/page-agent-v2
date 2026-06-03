@@ -32,7 +32,7 @@ func NewRouterWithServices(cfg config.Config, services Services) http.Handler {
 	registerHealthRoutes(mux, cfg)
 	registerAdminRoutes(mux, cfg, services.Indexer)
 	registerMemoryRoutes(mux, cfg, services.Registry, services.KnowledgeVectorizer)
-	registerTaskRunRoutes(mux, services.Registry)
-	registerKnowledgeRoutes(mux, services.Registry, services.KnowledgeVectorizer)
+	registerSiteManualRoutes(mux, services.Registry)
+	registerSiteTaskGuideRoutes(mux, services.Registry)
 	return mux
 }

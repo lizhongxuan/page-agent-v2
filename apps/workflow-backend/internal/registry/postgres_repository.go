@@ -525,208 +525,529 @@ func (repo *PostgresRepository) ListPageTransitions(ctx context.Context, query P
 		args...)
 }
 
-func (repo *PostgresRepository) SaveKnowledgeDocument(ctx context.Context, document KnowledgeDocument) error {
-	if document.ID == "" {
-		document.ID = newID("doc")
+func (repo *PostgresRepository) SaveSiteTaskGuide(ctx context.Context, guide SiteTaskGuide) error {
+	now := time.Now().UTC()
+	if guide.ID == "" {
+		guide.ID = newID("guide")
 	}
-	if document.CreatedAt.IsZero() {
-		document.CreatedAt = time.Now().UTC()
+	if guide.CreatedAt.IsZero() {
+		guide.CreatedAt = now
 	}
-	payload, err := marshalPayload(document)
+	if guide.UpdatedAt.IsZero() {
+		guide.UpdatedAt = now
+	}
+	if guide.Status == "" {
+		guide.Status = StatusActive
+	}
+	if err := ValidateSiteTaskGuide(guide); err != nil {
+		return err
+	}
+	payload, err := marshalPayload(guide)
+	if err != nil {
+		return err
+	}
+	taskExamples, err := json.Marshal(guide.TaskExamples)
+	if err != nil {
+		return err
+	}
+	taskIntentTerms, err := json.Marshal(guide.TaskIntentTerms)
+	if err != nil {
+		return err
+	}
+	inputSchema, err := json.Marshal(guide.InputSchema)
+	if err != nil {
+		return err
+	}
+	routeScope, err := json.Marshal(guide.RouteScope)
+	if err != nil {
+		return err
+	}
+	startPageGuard, err := json.Marshal(guide.StartPageGuard)
+	if err != nil {
+		return err
+	}
+	pageGuards, err := json.Marshal(guide.PageGuards)
+	if err != nil {
+		return err
+	}
+	uiStateEntries, err := json.Marshal(guide.UIStateEntries)
+	if err != nil {
+		return err
+	}
+	steps, err := json.Marshal(guide.Steps)
+	if err != nil {
+		return err
+	}
+	abandonRules, err := json.Marshal(guide.AbandonRules)
+	if err != nil {
+		return err
+	}
+	rejectRules, err := json.Marshal(guide.RejectRules)
+	if err != nil {
+		return err
+	}
+	variableRules, err := json.Marshal(guide.VariableRules)
+	if err != nil {
+		return err
+	}
+	evidence, err := json.Marshal(guide.Evidence)
 	if err != nil {
 		return err
 	}
 	_, err = repo.pool.Exec(ctx, `
-insert into knowledge_documents (id, project_id, created_at, payload)
-values ($1, $2, $3, $4)
-on conflict(id) do update set project_id = excluded.project_id, created_at = excluded.created_at, payload = excluded.payload`,
-		document.ID, document.ProjectID, document.CreatedAt, payload)
+insert into site_task_guides (id, project_id, site, module, task_intent_key, task_intent_summary, task_intent_terms, task_examples, input_schema, route_scope, start_url_pattern, start_page_guard, page_guards, ui_state_entries, steps, abandon_rules, reject_rules, variable_rules, evidence, summary, confidence, success_count, abandoned_count, misleading_count, unused_count, stale_count, status, created_at, updated_at, payload)
+values ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9::jsonb, $10::jsonb, $11, $12::jsonb, $13::jsonb, $14::jsonb, $15::jsonb, $16::jsonb, $17::jsonb, $18::jsonb, $19::jsonb, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30)
+on conflict(project_id, site, module, task_intent_key) do update set
+  task_intent_summary = excluded.task_intent_summary,
+  task_intent_terms = excluded.task_intent_terms,
+  task_examples = excluded.task_examples,
+  input_schema = excluded.input_schema,
+  route_scope = excluded.route_scope,
+  start_url_pattern = excluded.start_url_pattern,
+  start_page_guard = excluded.start_page_guard,
+  page_guards = excluded.page_guards,
+  ui_state_entries = excluded.ui_state_entries,
+  steps = excluded.steps,
+  abandon_rules = excluded.abandon_rules,
+  reject_rules = excluded.reject_rules,
+  variable_rules = excluded.variable_rules,
+  evidence = excluded.evidence,
+  summary = excluded.summary,
+  confidence = excluded.confidence,
+  success_count = excluded.success_count,
+  abandoned_count = excluded.abandoned_count,
+  misleading_count = excluded.misleading_count,
+  unused_count = excluded.unused_count,
+  stale_count = excluded.stale_count,
+  status = excluded.status,
+  updated_at = excluded.updated_at,
+  payload = excluded.payload`,
+		guide.ID, guide.ProjectID, guide.Site, guide.Module, guide.TaskIntentKey, guide.TaskIntentSummary,
+		string(taskIntentTerms), string(taskExamples), string(inputSchema), string(routeScope), guide.StartURLPattern,
+		string(startPageGuard), string(pageGuards), string(uiStateEntries), string(steps),
+		string(abandonRules), string(rejectRules), string(variableRules), string(evidence), guide.Summary, guide.Confidence,
+		guide.SuccessCount, guide.AbandonedCount, guide.MisleadingCount, guide.UnusedCount, guide.StaleCount,
+		string(guide.Status), guide.CreatedAt, guide.UpdatedAt, payload)
 	return err
 }
 
-func (repo *PostgresRepository) SaveKnowledgeChunks(ctx context.Context, chunks []KnowledgeChunk) error {
+func (repo *PostgresRepository) GetSiteTaskGuide(ctx context.Context, id string) (SiteTaskGuide, error) {
+	return getPayloadByID[SiteTaskGuide](ctx, repo.pool, "site_task_guides", id, "site task guide not found")
+}
+
+func (repo *PostgresRepository) ListSiteTaskGuides(ctx context.Context, query SiteTaskGuideListQuery) ([]SiteTaskGuide, error) {
+	where := []string{"true"}
+	args := []any{}
+	if query.ProjectID != "" {
+		args = append(args, query.ProjectID)
+		where = append(where, fmt.Sprintf("project_id = $%d", len(args)))
+	}
+	if query.Site != "" {
+		args = append(args, query.Site)
+		where = append(where, fmt.Sprintf("site = $%d", len(args)))
+	}
+	if query.Module != "" {
+		args = append(args, query.Module)
+		where = append(where, fmt.Sprintf("module = $%d", len(args)))
+	}
+	if query.Status != "" {
+		args = append(args, string(query.Status))
+		where = append(where, fmt.Sprintf("status = $%d", len(args)))
+	}
+	return listPayloads[SiteTaskGuide](ctx, repo.pool,
+		"select payload from site_task_guides where "+strings.Join(where, " and ")+" order by updated_at desc, id asc",
+		args...)
+}
+
+func (repo *PostgresRepository) SearchSiteTaskGuides(ctx context.Context, query SiteTaskGuideSearchQuery) ([]SiteTaskGuide, error) {
+	guides, err := repo.ListSiteTaskGuides(ctx, SiteTaskGuideListQuery{
+		ProjectID: query.ProjectID,
+		Site:      query.Site,
+		Status:    StatusActive,
+	})
+	if err != nil {
+		return nil, err
+	}
+	queryText := strings.ToLower(query.Task)
+	result := make([]SiteTaskGuide, 0, len(guides))
+	for _, guide := range guides {
+		if query.Module != "" && guide.Module != "" && !strings.EqualFold(guide.Module, query.Module) {
+			continue
+		}
+		score := scoreText(strings.Join([]string{
+			guide.TaskIntentKey,
+			guide.TaskIntentSummary,
+			guide.Summary,
+			strings.Join(guide.TaskExamples, " "),
+		}, "\n"), queryText)
+		if query.Task != "" && score <= 0 {
+			continue
+		}
+		guide.Confidence += score
+		result = append(result, guide)
+	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].Confidence == result[j].Confidence {
+			return result[i].ID < result[j].ID
+		}
+		return result[i].Confidence > result[j].Confidence
+	})
+	if query.Limit > 0 && len(result) > query.Limit {
+		result = result[:query.Limit]
+	}
+	return result, nil
+}
+
+func (repo *PostgresRepository) UpdateSiteTaskGuideStatus(ctx context.Context, id string, status Status) error {
+	guide, err := repo.GetSiteTaskGuide(ctx, id)
+	if err != nil {
+		return err
+	}
+	guide.Status = status
+	guide.UpdatedAt = time.Now().UTC()
+	return repo.SaveSiteTaskGuide(ctx, guide)
+}
+
+func (repo *PostgresRepository) SaveSiteTaskGuideFeedback(ctx context.Context, feedback SiteTaskGuideFeedback) error {
+	if feedback.ID == "" {
+		feedback.ID = newID("guide_feedback")
+	}
+	if feedback.CreatedAt.IsZero() {
+		feedback.CreatedAt = time.Now().UTC()
+	}
+	if err := ValidateSummaryLength(feedback.Reason); err != nil {
+		return err
+	}
+	payload, err := marshalPayload(feedback)
+	if err != nil {
+		return err
+	}
+	_, err = repo.pool.Exec(ctx, `
+insert into site_task_guide_feedback (id, guide_id, state_id, task_run_id, context_id, label, reason, matched_step_count, backtrack_count, created_at, payload)
+values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+on conflict(id) do update set
+  guide_id = excluded.guide_id,
+  state_id = excluded.state_id,
+  task_run_id = excluded.task_run_id,
+  context_id = excluded.context_id,
+  label = excluded.label,
+  reason = excluded.reason,
+  matched_step_count = excluded.matched_step_count,
+  backtrack_count = excluded.backtrack_count,
+  created_at = excluded.created_at,
+  payload = excluded.payload`,
+		feedback.ID, feedback.GuideID, feedback.StateID, feedback.TaskRunID, feedback.ContextID, string(feedback.Label),
+		feedback.Reason, feedback.MatchedStepCount, feedback.BacktrackCount, feedback.CreatedAt, payload)
+	return err
+}
+
+func (repo *PostgresRepository) SaveSiteManualSource(ctx context.Context, source SiteManualSource) error {
+	if source.ID == "" {
+		source.ID = newID("manual_source")
+	}
+	if source.CreatedAt.IsZero() {
+		source.CreatedAt = time.Now().UTC()
+	}
+	if source.Status == "" {
+		source.Status = StatusActive
+	}
+	if err := ValidateSiteManualSource(source); err != nil {
+		return err
+	}
+	payload, err := marshalPayload(source)
+	if err != nil {
+		return err
+	}
+	metadata, err := json.Marshal(source.Metadata)
+	if err != nil {
+		return err
+	}
+	_, err = repo.pool.Exec(ctx, `
+insert into site_manual_sources (id, project_id, site, module, title, source_type, content_hash, raw_content, metadata, status, created_at, payload)
+values ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12)
+on conflict(project_id, site, module, content_hash) do update set
+  title = excluded.title,
+  source_type = excluded.source_type,
+  raw_content = excluded.raw_content,
+  metadata = excluded.metadata,
+  status = excluded.status,
+  payload = excluded.payload`,
+		source.ID, source.ProjectID, source.Site, source.Module, source.Title, string(source.SourceType),
+		source.ContentHash, source.RawContent, string(metadata), string(source.Status), source.CreatedAt, payload)
+	return err
+}
+
+func (repo *PostgresRepository) FindSiteManualSourceByHash(ctx context.Context, query SiteManualSourceHashQuery) (SiteManualSource, error) {
+	return getPayload[SiteManualSource](ctx, repo.pool, `
+select payload from site_manual_sources
+where project_id = $1 and site = $2 and module = $3 and content_hash = $4 and status <> 'deleted'
+order by created_at desc limit 1`,
+		"site manual source not found", query.ProjectID, query.Site, query.Module, query.ContentHash)
+}
+
+func (repo *PostgresRepository) GetSiteManualSource(ctx context.Context, id string) (SiteManualSource, error) {
+	source, err := getPayloadByID[SiteManualSource](ctx, repo.pool, "site_manual_sources", id, "site manual source not found")
+	if err != nil {
+		return SiteManualSource{}, err
+	}
+	if source.Status == StatusDeleted {
+		return SiteManualSource{}, errors.New("site manual source not found")
+	}
+	return source, nil
+}
+
+func (repo *PostgresRepository) ListSiteManualSources(ctx context.Context, query SiteManualSourceListQuery) ([]SiteManualSource, error) {
+	where := []string{"status <> 'deleted'"}
+	args := []any{}
+	if !query.IncludeHidden {
+		where = append(where, "status not in ('disabled', 'replaced')")
+	}
+	if query.ProjectID != "" {
+		args = append(args, query.ProjectID)
+		where = append(where, fmt.Sprintf("project_id = $%d", len(args)))
+	}
+	if query.Site != "" {
+		args = append(args, query.Site)
+		where = append(where, fmt.Sprintf("site = $%d", len(args)))
+	}
+	if query.Module != "" {
+		args = append(args, query.Module)
+		where = append(where, fmt.Sprintf("module = $%d", len(args)))
+	}
+	return listPayloads[SiteManualSource](ctx, repo.pool,
+		"select payload from site_manual_sources where "+strings.Join(where, " and ")+" order by created_at desc, id asc",
+		args...)
+}
+
+func (repo *PostgresRepository) UpdateSiteManualSourceStatus(ctx context.Context, id string, status Status) error {
+	source, err := repo.GetSiteManualSource(ctx, id)
+	if err != nil {
+		return err
+	}
+	source.Status = status
+	if err := repo.SaveSiteManualSource(ctx, source); err != nil {
+		return err
+	}
+	wiki, _ := repo.GetSiteManualWikiForSource(ctx, id)
+	for index := range wiki.Pages {
+		wiki.Pages[index].Status = status
+		wiki.Pages[index].UpdatedAt = time.Now().UTC()
+	}
+	for index := range wiki.Chunks {
+		wiki.Chunks[index].Status = status
+	}
+	if len(wiki.Pages) > 0 || len(wiki.Chunks) > 0 {
+		return repo.SaveSiteManualWiki(ctx, wiki.Pages, wiki.Chunks)
+	}
+	return nil
+}
+
+func (repo *PostgresRepository) DeleteSiteManualSource(ctx context.Context, id string) error {
+	return repo.UpdateSiteManualSourceStatus(ctx, id, StatusDeleted)
+}
+
+func (repo *PostgresRepository) SaveSiteManualWiki(ctx context.Context, pages []SiteManualWikiPage, chunks []SiteManualWikiChunk) error {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	now := time.Now().UTC()
-	documentIDs := map[string]bool{}
-	for index := range chunks {
-		if chunks[index].DocumentID != "" {
-			documentIDs[chunks[index].DocumentID] = true
+	for _, page := range pages {
+		if page.ID == "" {
+			page.ID = newID("manual_page")
 		}
-		if chunks[index].ID == "" {
-			chunks[index].ID = newID("chunk")
+		if page.Status == "" {
+			page.Status = StatusActive
 		}
-	}
-	for documentID := range documentIDs {
-		if _, err := tx.Exec(ctx, "delete from knowledge_chunks where document_id = $1", documentID); err != nil {
+		if page.UpdatedAt.IsZero() {
+			page.UpdatedAt = now
+		}
+		if err := ValidateSiteManualWikiPage(page); err != nil {
+			return err
+		}
+		payload, err := marshalPayload(page)
+		if err != nil {
+			return err
+		}
+		facts, err := json.Marshal(page.Facts)
+		if err != nil {
+			return err
+		}
+		procedures, err := json.Marshal(page.Procedures)
+		if err != nil {
+			return err
+		}
+		relatedPages, err := json.Marshal(page.RelatedPages)
+		if err != nil {
+			return err
+		}
+		sourceRefs, err := json.Marshal(page.SourceRefs)
+		if err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `
+insert into site_manual_wiki_pages (id, project_id, site, module, page_key, title, summary, facts, procedures, related_pages, source_refs, confidence, status, updated_at, payload)
+values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10::jsonb, $11::jsonb, $12, $13, $14, $15)
+on conflict(project_id, site, module, page_key) do update set
+  title = excluded.title,
+  summary = excluded.summary,
+  facts = excluded.facts,
+  procedures = excluded.procedures,
+  related_pages = excluded.related_pages,
+  source_refs = excluded.source_refs,
+  confidence = excluded.confidence,
+  status = excluded.status,
+  updated_at = excluded.updated_at,
+  payload = excluded.payload`,
+			page.ID, page.ProjectID, page.Site, page.Module, page.PageKey, page.Title, page.Summary,
+			string(facts), string(procedures), string(relatedPages), string(sourceRefs),
+			page.Confidence, string(page.Status), page.UpdatedAt, payload); err != nil {
 			return err
 		}
 	}
 	for _, chunk := range chunks {
 		if chunk.ID == "" {
-			chunk.ID = newID("chunk")
+			chunk.ID = newID("manual_chunk")
 		}
-		if chunk.UpdatedAt.IsZero() {
-			chunk.UpdatedAt = now
+		if chunk.Status == "" {
+			chunk.Status = StatusActive
+		}
+		if err := ValidateSiteManualWikiChunk(chunk); err != nil {
+			return err
 		}
 		payload, err := marshalPayload(chunk)
 		if err != nil {
 			return err
 		}
-		tags, err := json.Marshal(chunk.Tags)
+		pageGuards, err := json.Marshal(chunk.PageGuards)
 		if err != nil {
 			return err
 		}
-		metadata, err := json.Marshal(chunk.Metadata)
+		targetTerms, err := json.Marshal(chunk.TargetTerms)
+		if err != nil {
+			return err
+		}
+		sourceRefs, err := json.Marshal(chunk.SourceRefs)
+		if err != nil {
+			return err
+		}
+		embedding, err := json.Marshal(chunk.Embedding)
 		if err != nil {
 			return err
 		}
 		if _, err := tx.Exec(ctx, `
-insert into knowledge_chunks (id, document_id, project_id, title, source, chunk_text, tags, metadata, embedding, updated_at, payload)
-values ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, nullif($9, '')::vector, $10, $11)
+insert into site_manual_wiki_chunks (id, wiki_page_id, project_id, site, module, chunk_type, text, page_guards, target_terms, source_refs, embedding, status, payload)
+values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10::jsonb, $11::jsonb, $12, $13)
 on conflict(id) do update set
-  document_id = excluded.document_id,
+  wiki_page_id = excluded.wiki_page_id,
   project_id = excluded.project_id,
-  title = excluded.title,
-  source = excluded.source,
-  chunk_text = excluded.chunk_text,
-  tags = excluded.tags,
-  metadata = excluded.metadata,
+  site = excluded.site,
+  module = excluded.module,
+  chunk_type = excluded.chunk_type,
+  text = excluded.text,
+  page_guards = excluded.page_guards,
+  target_terms = excluded.target_terms,
+  source_refs = excluded.source_refs,
   embedding = excluded.embedding,
-  updated_at = excluded.updated_at,
+  status = excluded.status,
   payload = excluded.payload`,
-			chunk.ID, chunk.DocumentID, chunk.ProjectID, chunk.Title, chunk.Source, chunk.ChunkText, string(tags), string(metadata), vectorLiteral(chunk.Embedding), chunk.UpdatedAt, payload); err != nil {
+			chunk.ID, chunk.WikiPageID, chunk.ProjectID, chunk.Site, chunk.Module, string(chunk.ChunkType),
+			chunk.Text, string(pageGuards), string(targetTerms), string(sourceRefs), string(embedding),
+			string(chunk.Status), payload); err != nil {
 			return err
 		}
 	}
 	return tx.Commit(ctx)
 }
 
-func (repo *PostgresRepository) SearchKnowledgeChunks(ctx context.Context, query KnowledgeSearchQuery) ([]KnowledgeChunk, error) {
-	if len(query.Embedding) > 0 {
-		hits, err := repo.searchKnowledgeChunksByEmbedding(ctx, query)
-		if err != nil {
-			return nil, err
-		}
-		if len(hits) > 0 {
-			return hits, nil
+func (repo *PostgresRepository) GetSiteManualWikiForSource(ctx context.Context, sourceID string) (SiteManualWiki, error) {
+	pages, err := listPayloads[SiteManualWikiPage](ctx, repo.pool, "select payload from site_manual_wiki_pages where status <> 'deleted'")
+	if err != nil {
+		return SiteManualWiki{}, err
+	}
+	chunks, err := listPayloads[SiteManualWikiChunk](ctx, repo.pool, "select payload from site_manual_wiki_chunks where status <> 'deleted'")
+	if err != nil {
+		return SiteManualWiki{}, err
+	}
+	wiki := SiteManualWiki{}
+	for _, page := range pages {
+		if sourceRefsContain(page.SourceRefs, sourceID) {
+			wiki.Pages = append(wiki.Pages, page)
 		}
 	}
-	chunks, err := listPayloads[KnowledgeChunk](ctx, repo.pool,
-		"select payload from knowledge_chunks where ($1 = '' or project_id = $1)",
-		query.ProjectID)
+	for _, chunk := range chunks {
+		if sourceRefsContain(chunk.SourceRefs, sourceID) {
+			wiki.Chunks = append(wiki.Chunks, chunk)
+		}
+	}
+	sort.Slice(wiki.Pages, func(i, j int) bool { return wiki.Pages[i].ID < wiki.Pages[j].ID })
+	sort.Slice(wiki.Chunks, func(i, j int) bool { return wiki.Chunks[i].ID < wiki.Chunks[j].ID })
+	return wiki, nil
+}
+
+func (repo *PostgresRepository) SearchSiteManualWikiChunks(ctx context.Context, query SiteManualWikiSearchQuery) ([]SiteManualKnowledgeMatch, error) {
+	chunks, err := listPayloads[SiteManualWikiChunk](ctx, repo.pool, "select payload from site_manual_wiki_chunks")
 	if err != nil {
 		return nil, err
 	}
-	queryText := strings.ToLower(strings.Join([]string{
-		query.Task,
-		query.Title,
-		query.URL,
-		query.VisibleText,
-		strings.Join(query.Hints, " "),
-	}, " "))
-	result := make([]KnowledgeChunk, 0)
-	for _, chunk := range chunks {
-		if !knowledgeChunkHardGateMatches(chunk, query) {
-			continue
-		}
-		score := scoreKnowledgeChunk(chunk, queryText)
-		if score <= 0 {
-			continue
-		}
-		chunk.Score = score
-		result = append(result, chunk)
-	}
-	sort.Slice(result, func(i, j int) bool {
-		if result[i].Score == result[j].Score {
-			return result[i].ID < result[j].ID
-		}
-		return result[i].Score > result[j].Score
-	})
 	limit := query.Limit
 	if limit <= 0 {
 		limit = 3
 	}
-	if len(result) > limit {
-		result = result[:limit]
+	queryText := strings.ToLower(query.Task)
+	matches := []SiteManualKnowledgeMatch{}
+	for _, chunk := range chunks {
+		reason := siteManualChunkFilterReason(chunk, query)
+		if reason != "" {
+			if query.IncludeFiltered {
+				matches = append(matches, SiteManualKnowledgeMatch{Chunk: chunk, Reason: reason, Score: -1})
+			}
+			continue
+		}
+		score := scoreText(strings.Join([]string{
+			chunk.Text,
+			strings.Join(chunk.TargetTerms, " "),
+		}, "\n"), queryText)
+		if len(query.Embedding) > 0 && len(chunk.Embedding) > 0 {
+			if vectorScore := cosineSimilarity(query.Embedding, chunk.Embedding); vectorScore > score {
+				score = vectorScore
+			}
+		}
+		if query.Task != "" && score <= 0 {
+			if query.IncludeFiltered {
+				matches = append(matches, SiteManualKnowledgeMatch{Chunk: chunk, Reason: "task term mismatch", Score: -1})
+			}
+			continue
+		}
+		chunk.Score = score
+		matches = append(matches, SiteManualKnowledgeMatch{
+			Chunk:  chunk,
+			Reason: "matched project, site, module, status, page guard, and task terms",
+			Score:  score,
+		})
 	}
-	return result, nil
-}
-
-func (repo *PostgresRepository) SaveBusinessSystemProfile(ctx context.Context, profile BusinessSystemProfile) error {
-	if profile.UpdatedAt.IsZero() {
-		profile.UpdatedAt = time.Now().UTC()
-	}
-	if err := ValidateMemoryRecord(profile); err != nil {
-		return err
-	}
-	payload, err := marshalPayload(profile)
-	if err != nil {
-		return err
-	}
-	modules, err := json.Marshal(profile.Modules)
-	if err != nil {
-		return err
-	}
-	entryPages, err := json.Marshal(profile.EntryPages)
-	if err != nil {
-		return err
-	}
-	terms, err := json.Marshal(profile.Terms)
-	if err != nil {
-		return err
-	}
-	sourceRefs, err := json.Marshal(profile.SourceRefs)
-	if err != nil {
-		return err
-	}
-	if profile.Status == "" {
-		profile.Status = StatusActive
-	}
-	if profile.SourceType == "" {
-		profile.SourceType = MemorySourceProduction
-	}
-	_, err = repo.pool.Exec(ctx, `
-	insert into business_system_profiles (project_id, site, module, source_type, status, summary, modules, entry_pages, terms, source_refs, confidence, updated_at, payload)
-	values ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9::jsonb, $10::jsonb, $11, $12, $13)
-	on conflict(project_id, site, module) do update set
-	  site = excluded.site,
-	  module = excluded.module,
-	  source_type = excluded.source_type,
-	  status = excluded.status,
-	  summary = excluded.summary,
-	  modules = excluded.modules,
-	  entry_pages = excluded.entry_pages,
-	  terms = excluded.terms,
-	  source_refs = excluded.source_refs,
-	  confidence = excluded.confidence,
-	  updated_at = excluded.updated_at,
-	  payload = excluded.payload`,
-		profile.ProjectID, profile.Site, profile.Module, string(profile.SourceType), string(profile.Status),
-		profile.Summary, string(modules), string(entryPages), string(terms), string(sourceRefs),
-		profile.Confidence, profile.UpdatedAt, payload)
-	return err
-}
-
-func (repo *PostgresRepository) GetBusinessSystemProfile(ctx context.Context, query BusinessSystemProfileQuery) (BusinessSystemProfile, error) {
-	profiles, err := listPayloads[BusinessSystemProfile](ctx, repo.pool,
-		"select payload from business_system_profiles where ($1 = '' or project_id = $1) and ($2 = '' or site = '' or site = $2)",
-		query.ProjectID, query.Site)
-	if err != nil {
-		return BusinessSystemProfile{}, err
-	}
-	sort.Slice(profiles, func(i, j int) bool {
-		return businessProfileRank(profiles[i], query) > businessProfileRank(profiles[j], query)
+	sort.SliceStable(matches, func(i, j int) bool {
+		if matches[i].Score == matches[j].Score {
+			return matches[i].Chunk.ID < matches[j].Chunk.ID
+		}
+		return matches[i].Score > matches[j].Score
 	})
-	for _, profile := range profiles {
-		if profileSourceAllowed(profile.SourceType, query.SourceType) && businessProfileRank(profile, query) > 0 {
-			return profile, nil
+	active := matches[:0]
+	filtered := []SiteManualKnowledgeMatch{}
+	for _, match := range matches {
+		if match.Score < 0 {
+			filtered = append(filtered, match)
+			continue
+		}
+		if len(active) < limit {
+			active = append(active, match)
 		}
 	}
-	return BusinessSystemProfile{}, errors.New("business system profile not found")
+	if query.IncludeFiltered {
+		active = append(active, filtered...)
+	}
+	return active, nil
 }
 
 func (repo *PostgresRepository) SavePageObservationEvent(ctx context.Context, event PageObservationEvent) error {
@@ -1074,10 +1395,6 @@ func (repo *PostgresRepository) SaveMemoryContextEvent(ctx context.Context, even
 	if err != nil {
 		return err
 	}
-	knowledgeIDs, err := json.Marshal(event.SelectedKnowledgeChunkIDs)
-	if err != nil {
-		return err
-	}
 	workflowIDs, err := json.Marshal(event.SelectedWorkflowIDs)
 	if err != nil {
 		return err
@@ -1087,22 +1404,21 @@ func (repo *PostgresRepository) SaveMemoryContextEvent(ctx context.Context, even
 		return err
 	}
 	_, err = repo.pool.Exec(ctx, `
-insert into memory_context_events (id, project_id, task, current_url, current_page_state, selected_experience_ids, selected_knowledge_chunk_ids, selected_workflow_ids, evidence_refs, recommended_mode, created_at, payload)
-values ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8::jsonb, $9::jsonb, $10, $11, $12)
+insert into memory_context_events (id, project_id, task, current_url, current_page_state, selected_experience_ids, selected_workflow_ids, evidence_refs, recommended_mode, created_at, payload)
+values ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8::jsonb, $9, $10, $11)
 on conflict(id) do update set
   project_id = excluded.project_id,
   task = excluded.task,
   current_url = excluded.current_url,
   current_page_state = excluded.current_page_state,
   selected_experience_ids = excluded.selected_experience_ids,
-  selected_knowledge_chunk_ids = excluded.selected_knowledge_chunk_ids,
   selected_workflow_ids = excluded.selected_workflow_ids,
   evidence_refs = excluded.evidence_refs,
   recommended_mode = excluded.recommended_mode,
   created_at = excluded.created_at,
   payload = excluded.payload`,
 		event.ID, event.ProjectID, event.Task, event.CurrentURL, event.CurrentPageState,
-		string(experienceIDs), string(knowledgeIDs), string(workflowIDs), string(evidenceRefs),
+		string(experienceIDs), string(workflowIDs), string(evidenceRefs),
 		string(event.RecommendedMode), event.CreatedAt, payload)
 	return err
 }
@@ -1331,44 +1647,6 @@ func (repo *PostgresRepository) updateMemoryReviewStatus(ctx context.Context, id
 		return errors.New("memory review not found")
 	}
 	return nil
-}
-
-func (repo *PostgresRepository) searchKnowledgeChunksByEmbedding(ctx context.Context, query KnowledgeSearchQuery) ([]KnowledgeChunk, error) {
-	limit := query.Limit
-	if limit <= 0 {
-		limit = 3
-	}
-	rows, err := repo.pool.Query(ctx, `
-select payload, 1 - (embedding <=> $2::vector) as score
-from knowledge_chunks
-where ($1 = '' or project_id = $1) and embedding is not null
-order by embedding <=> $2::vector
-limit $3`, query.ProjectID, vectorLiteral(query.Embedding), limit*3)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	result := []KnowledgeChunk{}
-	for rows.Next() {
-		var raw []byte
-		var score float64
-		if err := rows.Scan(&raw, &score); err != nil {
-			return nil, err
-		}
-		var chunk KnowledgeChunk
-		if err := json.Unmarshal(raw, &chunk); err != nil {
-			return nil, err
-		}
-		if !knowledgeChunkHardGateMatches(chunk, query) {
-			continue
-		}
-		chunk.Score = score
-		result = append(result, chunk)
-		if len(result) >= limit {
-			break
-		}
-	}
-	return result, rows.Err()
 }
 
 func (repo *PostgresRepository) RankActiveWorkflowsByEmbedding(ctx context.Context, projectID string, workflowIDs []string, embedding []float32, limit int) ([]WorkflowEmbeddingHit, error) {

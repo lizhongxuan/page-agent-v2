@@ -22,13 +22,13 @@ describe('SessionRecorder', () => {
 		expect(session.redactionReport).toEqual([{ actionId: 'a1', field: 'value' }])
 	})
 
-	it('tracks knowledge hits and finish timestamp', () => {
+	it('tracks memory hits and finish timestamp', () => {
 		const recorder = new SessionRecorder()
 		recorder.start({ id: 's1', task: '排障', startUrl: 'https://example.test' })
-		recorder.addKnowledgeHits([{ id: 'k1', title: 'Runbook', source: 'local', score: 0.9 }])
+		recorder.addMemoryHits([{ id: 'k1', title: 'Runbook', source: 'local', score: 0.9 }])
 
 		const session = recorder.finish()
-		expect(session.knowledgeHits).toEqual([
+		expect(session.memoryHits).toEqual([
 			{ id: 'k1', title: 'Runbook', source: 'local', score: 0.9 },
 		])
 		expect(session.endedAt).toEqual(expect.any(Number))

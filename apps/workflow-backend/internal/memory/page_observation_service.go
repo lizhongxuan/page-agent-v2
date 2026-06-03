@@ -9,27 +9,31 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/page-agent/workflow-backend/internal/registry"
 )
 
 type PageObservationRequest struct {
-	ProjectID           string                   `json:"projectId"`
-	Task                string                   `json:"task,omitempty"`
-	URL                 string                   `json:"url"`
-	Title               string                   `json:"title,omitempty"`
-	VisibleText         []string                 `json:"visibleText,omitempty"`
-	Controls            []PageObservationControl `json:"controls,omitempty"`
-	Links               []PageObservationLink    `json:"links,omitempty"`
-	Source              string                   `json:"source,omitempty"`
-	PreviousPageStateID string                   `json:"previousPageStateId,omitempty"`
-	TransitionAction    string                   `json:"transitionAction,omitempty"`
-	TransitionTarget    string                   `json:"transitionTarget,omitempty"`
+	ProjectID      string                            `json:"projectId"`
+	Task           string                            `json:"task,omitempty"`
+	URL            string                            `json:"url"`
+	Title          string                            `json:"title,omitempty"`
+	VisibleText    []string                          `json:"visibleText,omitempty"`
+	Controls       []PageObservationControl          `json:"controls,omitempty"`
+	Links          []PageObservationLink             `json:"links,omitempty"`
+	Breadcrumbs    []string                          `json:"breadcrumbs,omitempty"`
+	ActiveTabs     []string                          `json:"activeTabs,omitempty"`
+	Tables         []registry.ObservationTableSignal `json:"tables,omitempty"`
+	ActiveSurfaces []registry.ActiveSurfaceSignal    `json:"activeSurfaces,omitempty"`
+	Source         string                            `json:"source,omitempty"`
 }
 
 type PageObservationControl struct {
-	Role string `json:"role"`
-	Name string `json:"name"`
+	Role     string `json:"role"`
+	Name     string `json:"name"`
+	Selected *bool  `json:"selected,omitempty"`
+	Enabled  *bool  `json:"enabled,omitempty"`
 }
 
 type PageObservationLink struct {
@@ -39,8 +43,9 @@ type PageObservationLink struct {
 }
 
 type NormalizedPageObservation struct {
+	// Optional action-step page alias used for attribution and guide guard lookup.
 	PageStateID       string
-	Surface           *NormalizedPageSurface
+	Overlay           *NormalizedOverlaySignal
 	ProjectID         string
 	Site              string
 	URL               string
@@ -54,31 +59,19 @@ type NormalizedPageObservation struct {
 	HardRules         registry.HardRules
 }
 
-type NormalizedPageSurface struct {
-	ID              string
-	Type            registry.SurfaceType
-	Title           string
-	Fingerprint     string
-	Controls        []registry.ControlSignature
-	Text            []string
-	VisibilityRules registry.HardRules
+type NormalizedOverlaySignal struct {
+	Type     registry.SurfaceType
+	Title    string
+	Controls []registry.ControlSignature
+	Text     []string
 }
 
 type PageObservationResponse struct {
-	PageStateID      string                    `json:"pageStateId"`
-	SurfaceID        string                    `json:"surfaceId,omitempty"`
-	SurfaceType      registry.SurfaceType      `json:"surfaceType,omitempty"`
-	Matched          bool                      `json:"matched"`
-	Confidence       float64                   `json:"confidence"`
-	PageSummary      string                    `json:"pageSummary"`
-	KnownTransitions []KnownTransitionResponse `json:"knownTransitions,omitempty"`
-}
-
-type KnownTransitionResponse struct {
-	ToPageStateID string  `json:"toPageStateId"`
-	ActionName    string  `json:"actionName,omitempty"`
-	TargetName    string  `json:"targetName,omitempty"`
-	Confidence    float64 `json:"confidence,omitempty"`
+	ObservationID     string  `json:"observationId,omitempty"`
+	PageStateID       string  `json:"pageStateId"`
+	Matched           bool    `json:"matched"`
+	Confidence        float64 `json:"confidence"`
+	ActiveOverlayHint string  `json:"activeOverlayHint,omitempty"`
 }
 
 type PageObservationService struct {
@@ -102,7 +95,7 @@ func NormalizePageObservation(request PageObservationRequest) (NormalizedPageObs
 	if err != nil {
 		return NormalizedPageObservation{}, err
 	}
-	baseControls, surface := splitSurfaceControls(controls, request.VisibleText)
+	baseControls, overlay := splitOverlayControls(controls, request.VisibleText)
 	links := normalizeObservationLinks(request.Links)
 	visibleText := TruncateSummary(strings.TrimSpace(strings.Join(request.VisibleText, "\n")))
 	if ContainsSensitiveMaterial(visibleText) {
@@ -117,7 +110,7 @@ func NormalizePageObservation(request PageObservationRequest) (NormalizedPageObs
 		VisibleTextSample: visibleText,
 		Controls:          baseControls,
 		Links:             links,
-		Surface:           surface,
+		Overlay:           overlay,
 	}
 	normalized.HardRules = BuildPageHardRules(normalized)
 	normalized.Fingerprint = BuildPageFingerprint(normalized)
@@ -152,25 +145,6 @@ func BuildPageFingerprint(observation NormalizedPageObservation) string {
 	return "fp_" + hex.EncodeToString(hash[:8])
 }
 
-func BuildSurfaceFingerprint(observation NormalizedPageObservation, surface NormalizedPageSurface) string {
-	controls := append([]registry.ControlSignature(nil), surface.Controls...)
-	sort.Slice(controls, func(i, j int) bool {
-		if controls[i].Role == controls[j].Role {
-			return controls[i].Name < controls[j].Name
-		}
-		return controls[i].Role < controls[j].Role
-	})
-	hash := sha1.Sum([]byte(strings.Join([]string{
-		observation.ProjectID,
-		observation.Site,
-		observation.URLPattern,
-		string(surface.Type),
-		surface.Title,
-		controlText(controls),
-	}, "\x00")))
-	return "surf_fp_" + hex.EncodeToString(hash[:8])
-}
-
 func ExtractControlSignatures(controls []PageObservationControl) ([]registry.ControlSignature, error) {
 	seen := map[string]bool{}
 	result := []registry.ControlSignature{}
@@ -188,7 +162,12 @@ func ExtractControlSignatures(controls []PageObservationControl) ([]registry.Con
 			continue
 		}
 		seen[key] = true
-		result = append(result, registry.ControlSignature{Role: role, Name: name})
+		result = append(result, registry.ControlSignature{
+			Role:     role,
+			Name:     name,
+			Selected: control.Selected,
+			Enabled:  control.Enabled,
+		})
 	}
 	sort.Slice(result, func(i, j int) bool {
 		if result[i].Role == result[j].Role {
@@ -199,43 +178,39 @@ func ExtractControlSignatures(controls []PageObservationControl) ([]registry.Con
 	return result, nil
 }
 
-func splitSurfaceControls(controls []registry.ControlSignature, visibleText []string) ([]registry.ControlSignature, *NormalizedPageSurface) {
-	surfaceControls := []registry.ControlSignature{}
+func splitOverlayControls(controls []registry.ControlSignature, visibleText []string) ([]registry.ControlSignature, *NormalizedOverlaySignal) {
+	overlayControls := []registry.ControlSignature{}
 	baseControls := []registry.ControlSignature{}
-	surfaceType := registry.SurfaceType("")
+	overlayType := registry.SurfaceType("")
 	title := ""
 	for _, control := range controls {
-		if detected := detectSurfaceType(control); detected != "" {
-			if surfaceType == "" {
-				surfaceType = detected
+		if detected := detectOverlayType(control); detected != "" {
+			if overlayType == "" {
+				overlayType = detected
 				title = control.Name
 			}
-			surfaceControls = append(surfaceControls, control)
+			overlayControls = append(overlayControls, control)
 			continue
 		}
-		if surfaceType != "" && isLikelySurfaceControl(control) {
-			surfaceControls = append(surfaceControls, control)
+		if overlayType != "" && isLikelyOverlayControl(control) {
+			overlayControls = append(overlayControls, control)
 			continue
 		}
 		baseControls = append(baseControls, control)
 	}
-	if surfaceType == "" {
+	if overlayType == "" {
 		return baseControls, nil
 	}
-	surface := &NormalizedPageSurface{
-		Type:     surfaceType,
+	overlay := &NormalizedOverlaySignal{
+		Type:     overlayType,
 		Title:    title,
-		Controls: surfaceControls,
-		Text:     surfaceText(visibleText, title),
+		Controls: overlayControls,
+		Text:     overlayText(visibleText, title),
 	}
-	surface.VisibilityRules = registry.HardRules{
-		TextAny:     surface.Text,
-		ControlsAny: append([]registry.ControlSignature(nil), surfaceControls...),
-	}
-	return baseControls, surface
+	return baseControls, overlay
 }
 
-func detectSurfaceType(control registry.ControlSignature) registry.SurfaceType {
+func detectOverlayType(control registry.ControlSignature) registry.SurfaceType {
 	role := strings.ToLower(strings.TrimSpace(control.Role))
 	name := strings.ToLower(strings.TrimSpace(control.Name))
 	switch {
@@ -252,7 +227,7 @@ func detectSurfaceType(control registry.ControlSignature) registry.SurfaceType {
 	}
 }
 
-func isLikelySurfaceControl(control registry.ControlSignature) bool {
+func isLikelyOverlayControl(control registry.ControlSignature) bool {
 	name := strings.ToLower(strings.TrimSpace(control.Name))
 	return strings.Contains(name, "确认") ||
 		strings.Contains(name, "取消") ||
@@ -262,7 +237,7 @@ func isLikelySurfaceControl(control registry.ControlSignature) bool {
 		strings.Contains(name, "confirm")
 }
 
-func surfaceText(visibleText []string, title string) []string {
+func overlayText(visibleText []string, title string) []string {
 	result := []string{}
 	if strings.TrimSpace(title) != "" {
 		result = append(result, title)
@@ -306,8 +281,25 @@ func (service *PageObservationService) ObservePage(ctx context.Context, request 
 	if err != nil {
 		return PageObservationResponse{}, err
 	}
+	eventID := stablePageObservationEventID(normalized)
+	existing, _ := service.repo.ListPageObservationEvents(ctx, registry.PageObservationEventListQuery{
+		ProjectID:  normalized.ProjectID,
+		Site:       normalized.Site,
+		URLPattern: normalized.URLPattern,
+	})
+	matched := false
+	for _, item := range existing {
+		if item.ID == eventID {
+			matched = true
+			break
+		}
+	}
+	activeOverlayHint := ""
+	if normalized.Overlay != nil {
+		activeOverlayHint = strings.TrimSpace(strings.Join([]string{string(normalized.Overlay.Type), normalized.Overlay.Title}, ":"))
+	}
 	event := registry.PageObservationEvent{
-		ID:                stablePageObservationEventID(normalized),
+		ID:                eventID,
 		ProjectID:         normalized.ProjectID,
 		Site:              normalized.Site,
 		URL:               normalized.URL,
@@ -318,166 +310,105 @@ func (service *PageObservationService) ObservePage(ctx context.Context, request 
 		Links:             normalized.Links,
 		Fingerprint:       normalized.Fingerprint,
 		Payload: map[string]any{
-			"source": request.Source,
-			"task":   request.Task,
+			"source":            request.Source,
+			"task":              request.Task,
+			"activeOverlayHint": activeOverlayHint,
 		},
 	}
 	if err := service.repo.SavePageObservationEvent(ctx, event); err != nil {
 		return PageObservationResponse{}, err
 	}
-	pageState, matched, err := service.findOrCreatePageState(ctx, normalized)
-	if err != nil {
-		return PageObservationResponse{}, err
-	}
-	surfaceID := ""
-	surfaceType := registry.SurfaceType("")
-	if normalized.Surface != nil {
-		surface, err := service.findOrCreatePageSurface(ctx, normalized, pageState.ID)
-		if err != nil {
-			return PageObservationResponse{}, err
-		}
-		surfaceID = surface.ID
-		surfaceType = surface.SurfaceType
-		pageState = attachSurfaceID(pageState, surface.ID)
-		if err := service.repo.SavePageState(ctx, pageState); err != nil {
-			return PageObservationResponse{}, err
-		}
-	}
-	if request.PreviousPageStateID != "" && request.PreviousPageStateID != pageState.ID {
-		if err := service.saveTransition(ctx, normalized, request, pageState.ID); err != nil {
-			return PageObservationResponse{}, err
-		}
-	}
-	transitions, err := service.repo.ListPageTransitions(ctx, registry.PageTransitionListQuery{
-		ProjectID:       normalized.ProjectID,
-		Site:            normalized.Site,
-		FromPageStateID: pageState.ID,
-	})
-	if err != nil {
+	if err := service.saveObservedPageState(ctx, event.ID, normalized); err != nil {
 		return PageObservationResponse{}, err
 	}
 	return PageObservationResponse{
-		PageStateID:      pageState.ID,
-		SurfaceID:        surfaceID,
-		SurfaceType:      surfaceType,
-		Matched:          matched,
-		Confidence:       pageMatchConfidence(matched),
-		PageSummary:      summarizePage(normalized),
-		KnownTransitions: knownTransitionResponses(transitions),
+		ObservationID:     event.ID,
+		PageStateID:       event.ID,
+		Matched:           matched,
+		Confidence:        pageMatchConfidence(matched),
+		ActiveOverlayHint: activeOverlayHint,
 	}, nil
 }
 
-func (service *PageObservationService) findOrCreatePageSurface(ctx context.Context, observation NormalizedPageObservation, parentPageStateID string) (registry.PageSurface, error) {
-	surface := observation.Surface
-	if surface == nil {
-		return registry.PageSurface{}, errors.New("surface observation is required")
-	}
-	surface.Fingerprint = BuildSurfaceFingerprint(observation, *surface)
-	surface.ID = stableSurfaceID(observation, parentPageStateID, *surface)
-	existing, err := service.repo.ListPageSurfaces(ctx, registry.PageSurfaceListQuery{
-		ProjectID:         observation.ProjectID,
-		Site:              observation.Site,
-		ParentPageStateID: parentPageStateID,
-	})
-	if err == nil {
-		for _, item := range existing {
-			if item.SurfaceFingerprint == surface.Fingerprint {
-				item.RequiredControls = mergeControls(item.RequiredControls, surface.Controls)
-				item.RequiredText = mergeStrings(item.RequiredText, surface.Text)
-				item.VisibilityRules = surface.VisibilityRules
-				if err := service.repo.SavePageSurface(ctx, item); err != nil {
-					return registry.PageSurface{}, err
-				}
-				return item, nil
-			}
+func (service *PageObservationService) saveObservedPageState(ctx context.Context, pageStateID string, observation NormalizedPageObservation) error {
+	now := time.Now().UTC()
+	surfaceIDs := []string{}
+	if observation.Overlay != nil {
+		surface := observedPageSurface(pageStateID, observation, *observation.Overlay, now)
+		if err := service.repo.SavePageSurface(ctx, surface); err != nil {
+			return err
 		}
-	}
-	value := registry.PageSurface{
-		ID:                 surface.ID,
-		ProjectID:          observation.ProjectID,
-		Site:               observation.Site,
-		ParentPageStateID:  parentPageStateID,
-		SurfaceType:        surface.Type,
-		SurfaceFingerprint: surface.Fingerprint,
-		Title:              surface.Title,
-		RequiredText:       surface.Text,
-		RequiredControls:   surface.Controls,
-		VisibilityRules:    surface.VisibilityRules,
-		Status:             registry.StatusActive,
-	}
-	if err := service.repo.SavePageSurface(ctx, value); err != nil {
-		return registry.PageSurface{}, err
-	}
-	return value, nil
-}
-
-func attachSurfaceID(page registry.PageState, surfaceID string) registry.PageState {
-	if surfaceID == "" || containsString(page.SurfaceIDs, surfaceID) {
-		return page
-	}
-	page.SurfaceIDs = append(page.SurfaceIDs, surfaceID)
-	return page
-}
-
-func (service *PageObservationService) findOrCreatePageState(ctx context.Context, observation NormalizedPageObservation) (registry.PageState, bool, error) {
-	pages, err := service.repo.ListPageStates(ctx, registry.PageStateListQuery{ProjectID: observation.ProjectID, Site: observation.Site})
-	if err != nil {
-		return registry.PageState{}, false, err
-	}
-	for _, page := range pages {
-		if page.URLPattern == observation.URLPattern && strings.EqualFold(page.CanonicalTitle, observation.Title) {
-			page.RequiredControls = mergeControls(page.RequiredControls, observation.Controls)
-			page.StableControls = mergeControls(page.StableControls, observation.Controls)
-			page.RequiredText = mergeStrings(page.RequiredText, observation.HardRules.TextAll)
-			page.HardRules = BuildPageHardRules(observation)
-			page.BaseFingerprint = observation.Fingerprint
-			page.Confidence = 1
-			if page.Status == "" {
-				page.Status = registry.StatusActive
-			}
-			if err := service.repo.SavePageState(ctx, page); err != nil {
-				return registry.PageState{}, false, err
-			}
-			return page, true, nil
-		}
+		surfaceIDs = append(surfaceIDs, surface.ID)
 	}
 	page := registry.PageState{
-		ID:               stablePageStateID(observation),
-		ProjectID:        observation.ProjectID,
-		Site:             observation.Site,
-		URLPattern:       observation.URLPattern,
-		HardRules:        observation.HardRules,
-		RequiredText:     observation.HardRules.TextAll,
-		RequiredControls: observation.Controls,
-		StableControls:   observation.Controls,
-		CanonicalTitle:   observation.Title,
-		BaseFingerprint:  observation.Fingerprint,
-		Confidence:       1,
-		Status:           registry.StatusActive,
+		ID:                pageStateID,
+		ProjectID:         observation.ProjectID,
+		Site:              observation.Site,
+		URLPattern:        observation.URLPattern,
+		HardRules:         observation.HardRules,
+		RequiredText:      observedPageRequiredText(observation),
+		RequiredControls:  append([]registry.ControlSignature(nil), observation.Controls...),
+		StableControls:    append([]registry.ControlSignature(nil), observation.Controls...),
+		TransientControls: []registry.ControlSignature{},
+		SurfaceIDs:        surfaceIDs,
+		CanonicalTitle:    observation.Title,
+		BaseFingerprint:   observation.Fingerprint,
+		Confidence:        0.72,
+		UpdatePolicy:      "merge_observation",
+		LastStableSeenAt:  now,
+		Status:            registry.StatusActive,
+		UpdatedAt:         now,
 	}
-	if err := service.repo.SavePageState(ctx, page); err != nil {
-		return registry.PageState{}, false, err
-	}
-	return page, false, nil
+	return service.repo.SavePageState(ctx, page)
 }
 
-func (service *PageObservationService) saveTransition(ctx context.Context, observation NormalizedPageObservation, request PageObservationRequest, toPageStateID string) error {
-	actionName := strings.TrimSpace(request.TransitionAction)
-	if actionName == "" {
-		actionName = "Navigate to " + observation.Title
+func observedPageSurface(pageStateID string, observation NormalizedPageObservation, overlay NormalizedOverlaySignal, now time.Time) registry.PageSurface {
+	return registry.PageSurface{
+		ID:                 stablePageSurfaceID(pageStateID, overlay),
+		ProjectID:          observation.ProjectID,
+		Site:               observation.Site,
+		ParentPageStateID:  pageStateID,
+		SurfaceType:        overlay.Type,
+		SurfaceFingerprint: stablePageSurfaceFingerprint(pageStateID, overlay),
+		Title:              overlay.Title,
+		RequiredText:       append([]string(nil), overlay.Text...),
+		RequiredControls:   append([]registry.ControlSignature(nil), overlay.Controls...),
+		VisibilityRules: registry.HardRules{
+			URLPattern:  observation.URLPattern,
+			TextAny:     append([]string(nil), overlay.Text...),
+			ControlsAll: append([]registry.ControlSignature(nil), overlay.Controls...),
+		},
+		ObservationCount: 1,
+		Status:           registry.StatusActive,
+		FirstSeenAt:      now,
+		LastSeenAt:       now,
 	}
-	transition := registry.PageTransition{
-		ID:            stableTransitionID(request.PreviousPageStateID, toPageStateID, actionName),
-		ProjectID:     observation.ProjectID,
-		Site:          observation.Site,
-		FromPageState: request.PreviousPageStateID,
-		ToPageState:   toPageStateID,
-		ActionName:    actionName,
-		TargetName:    strings.TrimSpace(request.TransitionTarget),
-		GuardRules:    observation.HardRules,
-		RiskLevel:     registry.RiskReadOrSearch,
+}
+
+func observedPageRequiredText(observation NormalizedPageObservation) []string {
+	if strings.TrimSpace(observation.Title) == "" {
+		return nil
 	}
-	return service.repo.SavePageTransition(ctx, transition)
+	return []string{strings.TrimSpace(observation.Title)}
+}
+
+func stablePageSurfaceID(pageStateID string, overlay NormalizedOverlaySignal) string {
+	return "surface_" + stablePageSurfaceHash(pageStateID, overlay)
+}
+
+func stablePageSurfaceFingerprint(pageStateID string, overlay NormalizedOverlaySignal) string {
+	return "surface_fp_" + stablePageSurfaceHash(pageStateID, overlay)
+}
+
+func stablePageSurfaceHash(pageStateID string, overlay NormalizedOverlaySignal) string {
+	hash := sha1.Sum([]byte(strings.Join([]string{
+		pageStateID,
+		string(overlay.Type),
+		overlay.Title,
+		controlText(overlay.Controls),
+		strings.Join(overlay.Text, "\n"),
+	}, "\x00")))
+	return hex.EncodeToString(hash[:8])
 }
 
 func normalizeObservationURL(rawURL string) (string, string) {
@@ -542,15 +473,6 @@ func normalizeObservationLinks(links []PageObservationLink) []registry.PageLinkS
 	return result
 }
 
-func stablePageStateID(observation NormalizedPageObservation) string {
-	base := slugify(strings.Join([]string{observation.Title, observation.URLPattern}, " "))
-	if base == "" {
-		base = "page"
-	}
-	hash := sha1.Sum([]byte(observation.Fingerprint))
-	return base + "_" + hex.EncodeToString(hash[:4])
-}
-
 func stablePageObservationEventID(observation NormalizedPageObservation) string {
 	hash := sha1.Sum([]byte(strings.Join([]string{
 		observation.ProjectID,
@@ -561,67 +483,11 @@ func stablePageObservationEventID(observation NormalizedPageObservation) string 
 	return "obs_" + hex.EncodeToString(hash[:8])
 }
 
-func stableSurfaceID(observation NormalizedPageObservation, parentPageStateID string, surface NormalizedPageSurface) string {
-	hash := sha1.Sum([]byte(strings.Join([]string{
-		observation.ProjectID,
-		observation.Site,
-		parentPageStateID,
-		string(surface.Type),
-		surface.Fingerprint,
-	}, "\x00")))
-	return "surface_" + hex.EncodeToString(hash[:8])
-}
-
-func stableTransitionID(fromPageStateID, toPageStateID, actionName string) string {
-	hash := sha1.Sum([]byte(strings.Join([]string{fromPageStateID, toPageStateID, actionName}, "\x00")))
-	return "transition_" + hex.EncodeToString(hash[:8])
-}
-
-func slugify(value string) string {
-	value = strings.ToLower(value)
-	parts := regexp.MustCompile(`[^a-z0-9]+`).Split(value, -1)
-	kept := []string{}
-	for _, part := range parts {
-		if part != "" {
-			kept = append(kept, part)
-		}
-	}
-	if len(kept) == 0 {
-		return "page"
-	}
-	result := strings.Join(kept, "_")
-	if len(result) > 40 {
-		result = result[:40]
-	}
-	return "page_" + strings.Trim(result, "_")
-}
-
-func summarizePage(observation NormalizedPageObservation) string {
-	summary := strings.TrimSpace(strings.Join([]string{observation.Title, observation.VisibleTextSample}, " - "))
-	if summary == "" {
-		summary = observation.URLPattern
-	}
-	return TruncateSummary(summary)
-}
-
 func pageMatchConfidence(matched bool) float64 {
 	if matched {
 		return 0.91
 	}
 	return 0.62
-}
-
-func knownTransitionResponses(transitions []registry.PageTransition) []KnownTransitionResponse {
-	result := make([]KnownTransitionResponse, 0, len(transitions))
-	for _, transition := range transitions {
-		result = append(result, KnownTransitionResponse{
-			ToPageStateID: transition.ToPageState,
-			ActionName:    transition.ActionName,
-			TargetName:    transition.TargetName,
-			Confidence:    0.8,
-		})
-	}
-	return result
 }
 
 func controlText(controls []registry.ControlSignature) string {
@@ -638,33 +504,4 @@ func linkText(links []registry.PageLinkSummary) string {
 		parts = append(parts, strings.TrimSpace(link.Text+" "+link.URLPattern))
 	}
 	return strings.Join(parts, " ")
-}
-
-func mergeControls(left, right []registry.ControlSignature) []registry.ControlSignature {
-	seen := map[string]bool{}
-	result := []registry.ControlSignature{}
-	for _, control := range append(append([]registry.ControlSignature{}, left...), right...) {
-		key := strings.ToLower(control.Role + "\x00" + control.Name)
-		if key == "\x00" || seen[key] {
-			continue
-		}
-		seen[key] = true
-		result = append(result, control)
-	}
-	return result
-}
-
-func mergeStrings(left, right []string) []string {
-	seen := map[string]bool{}
-	result := []string{}
-	for _, value := range append(append([]string{}, left...), right...) {
-		value = strings.TrimSpace(value)
-		key := strings.ToLower(value)
-		if key == "" || seen[key] {
-			continue
-		}
-		seen[key] = true
-		result = append(result, value)
-	}
-	return result
 }

@@ -243,6 +243,10 @@ function getWorkflowElements() {
 	return {
 		visibleText: getVisibleTextLines(),
 		controls: getVisibleControls(),
+		breadcrumbs: getVisibleBreadcrumbs(),
+		activeTabs: getActiveTabs(),
+		tables: getVisibleTables(),
+		activeSurfaces: getActiveSurfaces(),
 	}
 }
 
@@ -265,9 +269,133 @@ function getVisibleControls() {
 		.map((element) => ({
 			role: element.getAttribute('role') || implicitRole(element) || 'control',
 			name: getAccessibleName(element),
+			selected: selectedState(element),
+			enabled: !isDisabledElement(element),
 		}))
 		.filter((control) => control.name.length > 0)
 		.slice(0, 120)
+}
+
+function getVisibleBreadcrumbs() {
+	return Array.from(
+		document.querySelectorAll<HTMLElement>(
+			'nav[aria-label*="breadcrumb" i], [aria-label*="breadcrumb" i], .breadcrumb, [class*="breadcrumb" i]'
+		)
+	)
+		.filter(isVisibleElement)
+		.flatMap((element) =>
+			normalizeSpace(element.innerText || element.textContent || '')
+				.split(/[>/\n]+/)
+				.map((value) => value.trim())
+		)
+		.filter(Boolean)
+		.slice(0, 8)
+}
+
+function getActiveTabs() {
+	return Array.from(
+		document.querySelectorAll<HTMLElement>(
+			'[role="tab"][aria-selected="true"], [role="tab"].active, [aria-current="page"], .active[role="tab"], .ant-tabs-tab-active, .el-tabs__item.is-active'
+		)
+	)
+		.filter(isVisibleElement)
+		.map((element) => getAccessibleName(element) || normalizeSpace(element.textContent || ''))
+		.filter(Boolean)
+		.slice(0, 8)
+}
+
+function getVisibleTables() {
+	return Array.from(document.querySelectorAll<HTMLElement>('table, [role="table"], [role="grid"]'))
+		.filter(isVisibleElement)
+		.map((table) => {
+			const headers = Array.from(table.querySelectorAll<HTMLElement>('th, [role="columnheader"]'))
+				.filter(isVisibleElement)
+				.map((header) => normalizeSpace(header.innerText || header.textContent || '').slice(0, 80))
+				.filter(Boolean)
+				.slice(0, 12)
+			return {
+				caption: normalizeSpace(table.querySelector('caption')?.textContent || '').slice(0, 120),
+				headers,
+			}
+		})
+		.filter((table) => table.headers.length > 0)
+		.slice(0, 8)
+}
+
+function getActiveSurfaces() {
+	return Array.from(
+		document.querySelectorAll<HTMLElement>(
+			'[role="dialog"], [aria-modal="true"], .modal, [class*="modal" i], .drawer, [class*="drawer" i], .popover, [class*="popover" i]'
+		)
+	)
+		.filter(isVisibleElement)
+		.map((surface) => ({
+			surfaceType: surfaceType(surface),
+			title: surfaceTitle(surface),
+			text: normalizeSpace(surface.innerText || surface.textContent || '')
+				.split(/\n+/)
+				.map((line) => line.trim().slice(0, 160))
+				.filter(Boolean)
+				.slice(0, 8),
+			controls: Array.from(
+				surface.querySelectorAll<HTMLElement>(
+					'button,a,input,textarea,select,[role],[tabindex]:not([tabindex="-1"])'
+				)
+			)
+				.filter(isVisibleElement)
+				.map((element) => ({
+					role: element.getAttribute('role') || implicitRole(element) || 'control',
+					name: getAccessibleName(element),
+					selected: selectedState(element),
+					enabled: !isDisabledElement(element),
+				}))
+				.filter((control) => control.name.length > 0)
+				.slice(0, 20),
+		}))
+		.filter((surface) => surface.title || surface.text.length > 0 || surface.controls.length > 0)
+		.slice(0, 4)
+}
+
+function selectedState(element: HTMLElement): boolean | undefined {
+	const ariaSelected = element.getAttribute('aria-selected')
+	if (ariaSelected === 'true') return true
+	if (ariaSelected === 'false') return false
+	if (
+		element instanceof HTMLInputElement &&
+		(element.type === 'checkbox' || element.type === 'radio')
+	) {
+		return element.checked
+	}
+	return undefined
+}
+
+function isDisabledElement(element: HTMLElement) {
+	if (element.getAttribute('aria-disabled') === 'true') return true
+	if ('disabled' in element && (element as HTMLButtonElement).disabled) return true
+	return false
+}
+
+function surfaceType(element: HTMLElement) {
+	const text = `${element.getAttribute('role') || ''} ${element.className || ''}`.toLowerCase()
+	if (text.includes('drawer')) return 'drawer'
+	if (text.includes('popover')) return 'popover'
+	if (text.includes('wizard')) return 'wizard'
+	if (text.includes('dialog') || text.includes('modal')) return 'modal'
+	return 'unknown'
+}
+
+function surfaceTitle(element: HTMLElement) {
+	const labelledBy = element.getAttribute('aria-labelledby')
+	const labelledTitle = labelledBy
+		?.split(/\s+/)
+		.map((id) => document.getElementById(id)?.textContent || '')
+		.join(' ')
+	const title =
+		element.getAttribute('aria-label') ||
+		labelledTitle ||
+		element.querySelector<HTMLElement>('h1,h2,h3,[role="heading"]')?.textContent ||
+		''
+	return normalizeSpace(title).slice(0, 120)
 }
 
 function isVisibleElement(element: HTMLElement) {

@@ -4,7 +4,6 @@ import { createRoot } from 'react-dom/client'
 import { describe, expect, it, vi } from 'vitest'
 
 import { DEMO_BASE_URL, DEMO_MODEL } from '@/agent/constants'
-import { defaultKnowledgeSettings } from '@/webops/knowledge/KnowledgeSettings'
 
 import { ConfigPanel } from './ConfigPanel'
 
@@ -52,7 +51,7 @@ describe('ConfigPanel', () => {
 		).not.toBeTruthy()
 	})
 
-	it('renders workflow memory as one shared backend configuration', async () => {
+	it('renders workflow memory without old knowledge settings', async () => {
 		document.body.innerHTML = '<div id="root"></div>'
 
 		await act(async () => {
@@ -61,11 +60,9 @@ describe('ConfigPanel', () => {
 					config={{
 						baseURL: DEMO_BASE_URL,
 						model: DEMO_MODEL,
-						knowledgeSettings: {
-							...defaultKnowledgeSettings,
-							enabled: true,
+						workflowBackend: {
 							baseUrl: 'http://127.0.0.1:38403',
-							projectKey: 'demo-knowledge',
+							projectId: 'demo-manuals',
 						},
 					}}
 					onSave={async () => {}}
@@ -75,19 +72,24 @@ describe('ConfigPanel', () => {
 		})
 
 		expect(document.body.textContent).toContain('Workflow Memory Backend')
-		expect(document.body.textContent).toContain('项目知识库')
-		expect(document.querySelector('input[placeholder="Knowledge Base URL"]')).toBeNull()
-		expect(document.querySelector('input[placeholder="Project Key"]')).toBeNull()
-		expect(document.querySelector('input[placeholder="Knowledge API Key"]')).toBeNull()
+		expect(document.body.textContent).toContain('Site Manual Library')
+		expect(document.body.textContent).not.toContain('项目知识库')
+		const placeholders = Array.from(document.querySelectorAll<HTMLInputElement>('input')).map(
+			(input) => input.placeholder
+		)
+		expect(placeholders).toEqual(
+			expect.arrayContaining(['http://127.0.0.1:38402', 'Project ID', 'Workflow Backend API Key'])
+		)
+		expect(placeholders).not.toContain('Project Key')
 		expect(
 			document.querySelector<HTMLInputElement>('input[placeholder="http://127.0.0.1:38402"]')!.value
 		).toBe('http://127.0.0.1:38403')
 		expect(document.querySelector<HTMLInputElement>('input[placeholder="Project ID"]')!.value).toBe(
-			'demo-knowledge'
+			'demo-manuals'
 		)
 	})
 
-	it('saves knowledge settings from the shared workflow memory backend fields', async () => {
+	it('saves only workflow backend fields for memory', async () => {
 		document.body.innerHTML = '<div id="root"></div>'
 		const onSave = vi.fn().mockResolvedValue(undefined)
 
@@ -97,10 +99,6 @@ describe('ConfigPanel', () => {
 					config={{
 						baseURL: DEMO_BASE_URL,
 						model: DEMO_MODEL,
-						knowledgeSettings: {
-							...defaultKnowledgeSettings,
-							enabled: true,
-						},
 					}}
 					onSave={onSave}
 					onClose={() => {}}
@@ -115,7 +113,7 @@ describe('ConfigPanel', () => {
 			)
 			setInputValue(
 				document.querySelector<HTMLInputElement>('input[placeholder="Project ID"]')!,
-				'demo-knowledge'
+				'demo-manuals'
 			)
 		})
 		await act(async () => {
@@ -128,17 +126,12 @@ describe('ConfigPanel', () => {
 			expect.objectContaining({
 				workflowBackend: {
 					baseUrl: 'http://127.0.0.1:38403',
-					projectId: 'demo-knowledge',
+					projectId: 'demo-manuals',
 					apiKey: undefined,
 				},
-				knowledgeSettings: expect.objectContaining({
-					enabled: true,
-					baseUrl: 'http://127.0.0.1:38403',
-					projectKey: 'demo-knowledge',
-					apiKey: '',
-				}),
 			})
 		)
+		expect(onSave.mock.calls[0]?.[0]).not.toHaveProperty('knowledgeSettings')
 	})
 })
 

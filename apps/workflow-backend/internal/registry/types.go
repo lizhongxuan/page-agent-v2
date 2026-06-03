@@ -12,6 +12,9 @@ const (
 	StatusPendingReview Status = "pending_review"
 	StatusActive        Status = "active"
 	StatusDisabled      Status = "disabled"
+	StatusHidden        Status = "hidden"
+	StatusStale         Status = "stale"
+	StatusReplaced      Status = "replaced"
 	StatusArchived      Status = "archived"
 	StatusDeleted       Status = "deleted"
 	StatusIndexed       Status = "indexed"
@@ -216,8 +219,10 @@ func (card WorkflowCard) EmbeddingText() string {
 }
 
 type ControlSignature struct {
-	Role string `json:"role"`
-	Name string `json:"name"`
+	Role     string `json:"role"`
+	Name     string `json:"name"`
+	Selected *bool  `json:"selected,omitempty"`
+	Enabled  *bool  `json:"enabled,omitempty"`
 }
 
 type PageState struct {
@@ -370,19 +375,33 @@ type HardRules struct {
 	ControlsAny []ControlSignature `json:"controlsAny,omitempty"`
 }
 
+type ObservationTableSignal struct {
+	Caption string   `json:"caption,omitempty"`
+	Headers []string `json:"headers,omitempty"`
+}
+
+type ActiveSurfaceSignal struct {
+	SurfaceType SurfaceType        `json:"surfaceType,omitempty"`
+	Title       string             `json:"title,omitempty"`
+	Text        []string           `json:"text,omitempty"`
+	Controls    []ControlSignature `json:"controls,omitempty"`
+}
+
 type ActionStep struct {
-	ID               string    `json:"id"`
-	TaskRunID        string    `json:"taskRunId,omitempty"`
-	PageStateID      string    `json:"pageStateId"`
-	SurfaceID        string    `json:"surfaceId,omitempty"`
-	StepIndex        int       `json:"stepIndex"`
-	ActionType       StepType  `json:"actionType"`
-	TargetName       string    `json:"targetName"`
-	ValueTemplate    string    `json:"valueTemplate,omitempty"`
-	ReasoningSummary string    `json:"reasoningSummary,omitempty"`
-	ResultSummary    string    `json:"resultSummary,omitempty"`
-	IsBranchNoise    bool      `json:"isBranchNoise,omitempty"`
-	CreatedAt        time.Time `json:"createdAt,omitempty"`
+	ID                string                 `json:"id"`
+	TaskRunID         string                 `json:"taskRunId,omitempty"`
+	PageStateID       string                 `json:"pageStateId"`
+	SurfaceID         string                 `json:"surfaceId,omitempty"`
+	StepIndex         int                    `json:"stepIndex"`
+	ActionType        StepType               `json:"actionType"`
+	TargetName        string                 `json:"targetName"`
+	ValueTemplate     string                 `json:"valueTemplate,omitempty"`
+	ReasoningSummary  string                 `json:"reasoningSummary,omitempty"`
+	ResultSummary     string                 `json:"resultSummary,omitempty"`
+	IsBranchNoise     bool                   `json:"isBranchNoise,omitempty"`
+	BeforeObservation *PageObservationSignal `json:"beforeObservation,omitempty"`
+	AfterObservation  *PageObservationSignal `json:"afterObservation,omitempty"`
+	CreatedAt         time.Time              `json:"createdAt,omitempty"`
 }
 
 func (step ActionStep) IsReusableSuccessful() bool {
@@ -415,6 +434,308 @@ type TaskRun struct {
 	CreatedAt          time.Time           `json:"createdAt,omitempty"`
 }
 
+type SiteTaskGuideGuard struct {
+	URLIncludes       []string           `json:"urlIncludes,omitempty"`
+	URLPattern        string             `json:"urlPattern,omitempty"`
+	RequiredText      []string           `json:"requiredText,omitempty"`
+	RequiredControls  []ControlSignature `json:"requiredControls,omitempty"`
+	ActiveOverlayHint string             `json:"activeOverlayHint,omitempty"`
+}
+
+type SiteTaskGuideStep struct {
+	ID              string                       `json:"id,omitempty"`
+	Index           int                          `json:"index,omitempty"`
+	Text            string                       `json:"text"`
+	Goal            string                       `json:"goal,omitempty"`
+	ActionType      StepType                     `json:"actionType,omitempty"`
+	Target          string                       `json:"target,omitempty"`
+	PageTitle       string                       `json:"pageTitle,omitempty"`
+	SemanticTarget  SiteTaskGuideStepTarget      `json:"semanticTarget,omitempty"`
+	ExpectedOutcome SiteTaskGuideExpectedOutcome `json:"expectedOutcome,omitempty"`
+}
+
+type SiteTaskIntentTerms struct {
+	Positive []string `json:"positive,omitempty"`
+	Negative []string `json:"negative,omitempty"`
+}
+
+type SiteTaskGuideRouteScope struct {
+	URLIncludes []string `json:"urlIncludes,omitempty"`
+	URLPattern  string   `json:"urlPattern,omitempty"`
+}
+
+type SiteTaskGuideUIStateType string
+
+const (
+	SiteTaskGuideUIStatePage       SiteTaskGuideUIStateType = "page"
+	SiteTaskGuideUIStateTab        SiteTaskGuideUIStateType = "tab"
+	SiteTaskGuideUIStateModal      SiteTaskGuideUIStateType = "modal"
+	SiteTaskGuideUIStateDrawer     SiteTaskGuideUIStateType = "drawer"
+	SiteTaskGuideUIStatePopover    SiteTaskGuideUIStateType = "popover"
+	SiteTaskGuideUIStateWizard     SiteTaskGuideUIStateType = "wizard"
+	SiteTaskGuideUIStateTableState SiteTaskGuideUIStateType = "table_state"
+)
+
+type SiteTaskGuideUIStateEvidence struct {
+	TitleAny            []string                 `json:"titleAny,omitempty"`
+	BreadcrumbAny       []string                 `json:"breadcrumbAny,omitempty"`
+	ActiveTabAny        []string                 `json:"activeTabAny,omitempty"`
+	TextAll             []string                 `json:"textAll,omitempty"`
+	TextAny             []string                 `json:"textAny,omitempty"`
+	ControlsAll         []ControlSignature       `json:"controlsAll,omitempty"`
+	ControlsAny         []ControlSignature       `json:"controlsAny,omitempty"`
+	TableHeadersAny     [][]string               `json:"tableHeadersAny,omitempty"`
+	NegativeTextAny     []string                 `json:"negativeTextAny,omitempty"`
+	NegativeControlsAny []ControlSignature       `json:"negativeControlsAny,omitempty"`
+	ActiveSurfacesAny   []ActiveSurfaceSignal    `json:"activeSurfacesAny,omitempty"`
+	TablesAny           []ObservationTableSignal `json:"tablesAny,omitempty"`
+}
+
+type SiteTaskGuideUIStateEntry struct {
+	ID               string                       `json:"id"`
+	Name             string                       `json:"name,omitempty"`
+	StateType        SiteTaskGuideUIStateType     `json:"stateType"`
+	StepOffset       int                          `json:"stepOffset"`
+	RouteScope       SiteTaskGuideRouteScope      `json:"routeScope,omitempty"`
+	Evidence         SiteTaskGuideUIStateEvidence `json:"evidence,omitempty"`
+	MinimumScore     float64                      `json:"minimumScore,omitempty"`
+	RequiredEvidence []string                     `json:"requiredEvidence,omitempty"`
+	Confidence       float64                      `json:"confidence,omitempty"`
+	LastMatchedAt    time.Time                    `json:"lastMatchedAt,omitempty"`
+	Status           Status                       `json:"status,omitempty"`
+}
+
+type SiteTaskGuideStepTarget struct {
+	Role          string   `json:"role,omitempty"`
+	Text          string   `json:"text,omitempty"`
+	Aliases       []string `json:"aliases,omitempty"`
+	ContainerHint string   `json:"containerHint,omitempty"`
+}
+
+type SiteTaskGuideExpectedOutcome struct {
+	SurfaceType  SurfaceType        `json:"surfaceType,omitempty"`
+	TitleAny     []string           `json:"titleAny,omitempty"`
+	TextAny      []string           `json:"textAny,omitempty"`
+	ActiveTabAny []string           `json:"activeTabAny,omitempty"`
+	ControlsAll  []ControlSignature `json:"controlsAll,omitempty"`
+	ControlsAny  []ControlSignature `json:"controlsAny,omitempty"`
+}
+
+type SiteTaskGuide struct {
+	ID                string                      `json:"id"`
+	ProjectID         string                      `json:"projectId"`
+	Site              string                      `json:"site"`
+	Module            string                      `json:"module,omitempty"`
+	TaskIntentKey     string                      `json:"taskIntentKey"`
+	TaskIntentSummary string                      `json:"taskIntentSummary"`
+	TaskIntentTerms   SiteTaskIntentTerms         `json:"taskIntentTerms,omitempty"`
+	TaskExamples      []string                    `json:"taskExamples,omitempty"`
+	InputSchema       []Variable                  `json:"inputSchema,omitempty"`
+	RouteScope        SiteTaskGuideRouteScope     `json:"routeScope,omitempty"`
+	StartURLPattern   string                      `json:"startUrlPattern,omitempty"`
+	StartPageGuard    SiteTaskGuideGuard          `json:"startPageGuard,omitempty"`
+	PageGuards        []SiteTaskGuideGuard        `json:"pageGuards,omitempty"`
+	UIStateEntries    []SiteTaskGuideUIStateEntry `json:"uiStateEntries,omitempty"`
+	Steps             []SiteTaskGuideStep         `json:"steps"`
+	AbandonRules      []string                    `json:"abandonRules,omitempty"`
+	RejectRules       []string                    `json:"rejectRules,omitempty"`
+	VariableRules     []string                    `json:"variableRules,omitempty"`
+	Evidence          []MemorySourceRef           `json:"evidence,omitempty"`
+	Summary           string                      `json:"summary"`
+	Confidence        float64                     `json:"confidence,omitempty"`
+	SuccessCount      int                         `json:"successCount,omitempty"`
+	AbandonedCount    int                         `json:"abandonedCount,omitempty"`
+	MisleadingCount   int                         `json:"misleadingCount,omitempty"`
+	UnusedCount       int                         `json:"unusedCount,omitempty"`
+	StaleCount        int                         `json:"staleCount,omitempty"`
+	Status            Status                      `json:"status"`
+	CreatedAt         time.Time                   `json:"createdAt,omitempty"`
+	UpdatedAt         time.Time                   `json:"updatedAt,omitempty"`
+}
+
+func (guide SiteTaskGuide) SearchableText() string {
+	parts := []string{
+		guide.TaskIntentKey,
+		guide.TaskIntentSummary,
+		guide.Summary,
+		strings.Join(guide.TaskExamples, " "),
+	}
+	for _, step := range guide.Steps {
+		parts = append(parts, step.Text, step.Target, step.Goal)
+		parts = append(parts, step.SemanticTarget.Text, step.SemanticTarget.Role, strings.Join(step.SemanticTarget.Aliases, " "), step.SemanticTarget.ContainerHint)
+	}
+	parts = append(parts, strings.Join(guide.TaskIntentTerms.Positive, " "))
+	return strings.TrimSpace(strings.Join(parts, "\n"))
+}
+
+type SiteTaskGuideFeedbackLabel string
+
+const (
+	SiteTaskGuideFeedbackUsedHelpful       SiteTaskGuideFeedbackLabel = "used_helpful"
+	SiteTaskGuideFeedbackAbandonedMismatch SiteTaskGuideFeedbackLabel = "abandoned_mismatch"
+	SiteTaskGuideFeedbackUsedMisleading    SiteTaskGuideFeedbackLabel = "used_misleading"
+	SiteTaskGuideFeedbackUnused            SiteTaskGuideFeedbackLabel = "unused"
+	SiteTaskGuideFeedbackStale             SiteTaskGuideFeedbackLabel = "stale"
+	SiteTaskGuideFeedbackManualHelpful     SiteTaskGuideFeedbackLabel = "manual_helpful"
+	SiteTaskGuideFeedbackManualStale       SiteTaskGuideFeedbackLabel = "manual_stale"
+	SiteTaskGuideFeedbackManualUnused      SiteTaskGuideFeedbackLabel = "manual_unused"
+)
+
+type SiteTaskGuideFeedback struct {
+	ID               string                     `json:"id"`
+	GuideID          string                     `json:"guideId"`
+	StateID          string                     `json:"stateId,omitempty"`
+	TaskRunID        string                     `json:"taskRunId"`
+	ContextID        string                     `json:"contextId"`
+	Label            SiteTaskGuideFeedbackLabel `json:"label"`
+	Reason           string                     `json:"reason,omitempty"`
+	MatchedStepCount int                        `json:"matchedStepCount,omitempty"`
+	BacktrackCount   int                        `json:"backtrackCount,omitempty"`
+	CreatedAt        time.Time                  `json:"createdAt,omitempty"`
+}
+
+type SiteManualSourceType string
+
+const (
+	SiteManualSourceMarkdown SiteManualSourceType = "markdown"
+	SiteManualSourceHTML     SiteManualSourceType = "html"
+	SiteManualSourcePDFText  SiteManualSourceType = "pdf_text"
+	SiteManualSourceText     SiteManualSourceType = "text"
+)
+
+type SiteManualSource struct {
+	ID          string               `json:"id"`
+	ProjectID   string               `json:"projectId"`
+	Site        string               `json:"site"`
+	Module      string               `json:"module,omitempty"`
+	Title       string               `json:"title"`
+	SourceType  SiteManualSourceType `json:"sourceType"`
+	ContentHash string               `json:"contentHash"`
+	RawContent  string               `json:"rawContent,omitempty"`
+	Metadata    map[string]any       `json:"metadata,omitempty"`
+	Status      Status               `json:"status"`
+	CreatedAt   time.Time            `json:"createdAt,omitempty"`
+}
+
+type SiteManualChunkType string
+
+const (
+	SiteManualChunkPageSummary      SiteManualChunkType = "page_summary"
+	SiteManualChunkProcedure        SiteManualChunkType = "procedure"
+	SiteManualChunkWarning          SiteManualChunkType = "warning"
+	SiteManualChunkFieldExplanation SiteManualChunkType = "field_explanation"
+)
+
+type SiteManualWikiPage struct {
+	ID           string            `json:"id"`
+	ProjectID    string            `json:"projectId"`
+	Site         string            `json:"site"`
+	Module       string            `json:"module,omitempty"`
+	PageKey      string            `json:"pageKey"`
+	Title        string            `json:"title"`
+	Summary      string            `json:"summary"`
+	Facts        []string          `json:"facts,omitempty"`
+	Procedures   []string          `json:"procedures,omitempty"`
+	RelatedPages []string          `json:"relatedPages,omitempty"`
+	SourceRefs   []MemorySourceRef `json:"sourceRefs,omitempty"`
+	Confidence   float64           `json:"confidence,omitempty"`
+	Status       Status            `json:"status"`
+	UpdatedAt    time.Time         `json:"updatedAt,omitempty"`
+}
+
+type SiteManualWikiChunk struct {
+	ID          string              `json:"id"`
+	WikiPageID  string              `json:"wikiPageId"`
+	ProjectID   string              `json:"projectId"`
+	Site        string              `json:"site"`
+	Module      string              `json:"module,omitempty"`
+	ChunkType   SiteManualChunkType `json:"chunkType"`
+	Text        string              `json:"text"`
+	PageGuards  HardRules           `json:"pageGuards,omitempty"`
+	TargetTerms []string            `json:"targetTerms,omitempty"`
+	SourceRefs  []MemorySourceRef   `json:"sourceRefs,omitempty"`
+	Embedding   []float32           `json:"embedding,omitempty"`
+	Status      Status              `json:"status"`
+	Score       float64             `json:"score,omitempty"`
+}
+
+type SiteManualWiki struct {
+	Pages  []SiteManualWikiPage  `json:"pages"`
+	Chunks []SiteManualWikiChunk `json:"chunks"`
+}
+
+type PageObservationSignal struct {
+	ProjectID         string                   `json:"projectId"`
+	Site              string                   `json:"site"`
+	URL               string                   `json:"url"`
+	URLPattern        string                   `json:"urlPattern,omitempty"`
+	URLFamily         string                   `json:"urlFamily,omitempty"`
+	Title             string                   `json:"title,omitempty"`
+	Breadcrumbs       []string                 `json:"breadcrumbs,omitempty"`
+	ActiveTabs        []string                 `json:"activeTabs,omitempty"`
+	VisibleTextSample string                   `json:"visibleTextSample,omitempty"`
+	ControlSignatures []ControlSignature       `json:"controlSignatures,omitempty"`
+	Tables            []ObservationTableSignal `json:"tables,omitempty"`
+	ActiveSurfaces    []ActiveSurfaceSignal    `json:"activeSurfaces,omitempty"`
+	ActiveOverlayHint string                   `json:"activeOverlayHint,omitempty"`
+	ObservedAt        time.Time                `json:"observedAt,omitempty"`
+}
+
+type SiteManualImportRequest struct {
+	ProjectID  string               `json:"projectId"`
+	Site       string               `json:"site"`
+	Module     string               `json:"module,omitempty"`
+	Title      string               `json:"title"`
+	Content    string               `json:"content"`
+	SourceType SiteManualSourceType `json:"sourceType"`
+	Metadata   map[string]any       `json:"metadata,omitempty"`
+}
+
+type SiteManualSourceHashQuery struct {
+	ProjectID   string
+	Site        string
+	Module      string
+	ContentHash string
+}
+
+type SiteManualSourceListQuery struct {
+	ProjectID     string
+	Site          string
+	Module        string
+	IncludeHidden bool
+}
+
+type SiteManualWikiSearchQuery struct {
+	ProjectID         string
+	Site              string
+	Module            string
+	Task              string
+	URL               string
+	Title             string
+	VisibleTextSample string
+	ActiveOverlayHint string
+	Embedding         []float32
+	Limit             int
+	IncludeFiltered   bool
+}
+
+type SiteManualKnowledgeMatch struct {
+	Chunk  SiteManualWikiChunk `json:"chunk"`
+	Reason string              `json:"reason,omitempty"`
+	Score  float64             `json:"score,omitempty"`
+}
+
+type SiteManualFilteredReason struct {
+	ChunkID string `json:"chunkId"`
+	Reason  string `json:"reason"`
+}
+
+type SiteManualPreviewContext struct {
+	Matches  []SiteManualKnowledgeMatch `json:"matches"`
+	Filtered []SiteManualFilteredReason `json:"filtered"`
+	Prompt   string                     `json:"prompt"`
+}
+
 type PageStatePurpose struct {
 	ID               string             `json:"id"`
 	ProjectID        string             `json:"projectId"`
@@ -426,67 +747,6 @@ type PageStatePurpose struct {
 	RequiredControls []ControlSignature `json:"requiredControls,omitempty"`
 	RequiredText     []string           `json:"requiredText,omitempty"`
 	UpdatedAt        time.Time          `json:"updatedAt,omitempty"`
-}
-
-type KnowledgeDocument struct {
-	ID        string    `json:"id"`
-	ProjectID string    `json:"projectId"`
-	Title     string    `json:"title"`
-	Source    string    `json:"source"`
-	URL       string    `json:"url,omitempty"`
-	Content   string    `json:"content"`
-	Tags      []string  `json:"tags,omitempty"`
-	CreatedAt time.Time `json:"createdAt,omitempty"`
-}
-
-type KnowledgeChunk struct {
-	ID         string         `json:"id"`
-	DocumentID string         `json:"documentId"`
-	ProjectID  string         `json:"projectId"`
-	Title      string         `json:"title,omitempty"`
-	Source     string         `json:"source,omitempty"`
-	ChunkText  string         `json:"chunkText"`
-	Metadata   map[string]any `json:"metadata,omitempty"`
-	Embedding  []float32      `json:"embedding,omitempty"`
-	Score      float64        `json:"score,omitempty"`
-	Tags       []string       `json:"tags,omitempty"`
-	UpdatedAt  time.Time      `json:"updatedAt,omitempty"`
-}
-
-type BusinessSystemProfile struct {
-	ProjectID  string            `json:"projectId"`
-	Site       string            `json:"site"`
-	Module     string            `json:"module,omitempty"`
-	Summary    string            `json:"summary"`
-	Modules    []BusinessModule  `json:"modules,omitempty"`
-	EntryPages []EntryPageRef    `json:"entryPages,omitempty"`
-	Terms      map[string]string `json:"terms,omitempty"`
-	SourceRefs []MemorySourceRef `json:"sourceRefs,omitempty"`
-	SourceType MemorySourceType  `json:"sourceType,omitempty"`
-	Confidence float64           `json:"confidence,omitempty"`
-	Status     Status            `json:"status,omitempty"`
-	UpdatedAt  time.Time         `json:"updatedAt,omitempty"`
-}
-
-type MemorySourceType string
-
-const (
-	MemorySourceProduction MemorySourceType = "production"
-	MemorySourceTest       MemorySourceType = "test"
-	MemorySourceSeed       MemorySourceType = "seed"
-	MemorySourceExample    MemorySourceType = "example"
-)
-
-type BusinessModule struct {
-	Name             string `json:"name"`
-	Purpose          string `json:"purpose"`
-	EntryPageStateID string `json:"entryPageStateId,omitempty"`
-}
-
-type EntryPageRef struct {
-	PageStateID string `json:"pageStateId"`
-	Name        string `json:"name,omitempty"`
-	URLPattern  string `json:"urlPattern,omitempty"`
 }
 
 type MemorySourceRef struct {
@@ -631,7 +891,8 @@ const (
 type MemoryEvidenceSource string
 
 const (
-	MemoryEvidenceSourceKnowledge  MemoryEvidenceSource = "knowledge"
+	MemoryEvidenceSourceGuide      MemoryEvidenceSource = "guide"
+	MemoryEvidenceSourceManual     MemoryEvidenceSource = "manual"
 	MemoryEvidenceSourceExperience MemoryEvidenceSource = "experience"
 	MemoryEvidenceSourceFailure    MemoryEvidenceSource = "failure"
 	MemoryEvidenceSourceNavigation MemoryEvidenceSource = "navigation"
@@ -701,20 +962,19 @@ type MemoryEvidenceStats struct {
 }
 
 type MemoryContextEvent struct {
-	ID                        string              `json:"id"`
-	ProjectID                 string              `json:"projectId"`
-	Task                      string              `json:"task"`
-	CurrentURL                string              `json:"currentUrl"`
-	CurrentPageState          string              `json:"currentPageState,omitempty"`
-	CurrentSurface            string              `json:"currentSurface,omitempty"`
-	ContextPrompt             string              `json:"contextPrompt,omitempty"`
-	SelectedExperienceIDs     []string            `json:"selectedExperienceIds,omitempty"`
-	SelectedKnowledgeChunkIDs []string            `json:"selectedKnowledgeChunkIds,omitempty"`
-	SelectedWorkflowIDs       []string            `json:"selectedWorkflowIds,omitempty"`
-	EvidenceRefs              []MemoryEvidenceRef `json:"evidenceRefs,omitempty"`
-	RecommendedMode           MemoryMode          `json:"recommendedMode"`
-	Payload                   map[string]any      `json:"payload,omitempty"`
-	CreatedAt                 time.Time           `json:"createdAt,omitempty"`
+	ID                    string              `json:"id"`
+	ProjectID             string              `json:"projectId"`
+	Task                  string              `json:"task"`
+	CurrentURL            string              `json:"currentUrl"`
+	CurrentPageState      string              `json:"currentPageState,omitempty"`
+	CurrentSurface        string              `json:"currentSurface,omitempty"`
+	ContextPrompt         string              `json:"contextPrompt,omitempty"`
+	SelectedExperienceIDs []string            `json:"selectedExperienceIds,omitempty"`
+	SelectedWorkflowIDs   []string            `json:"selectedWorkflowIds,omitempty"`
+	EvidenceRefs          []MemoryEvidenceRef `json:"evidenceRefs,omitempty"`
+	RecommendedMode       MemoryMode          `json:"recommendedMode"`
+	Payload               map[string]any      `json:"payload,omitempty"`
+	CreatedAt             time.Time           `json:"createdAt,omitempty"`
 }
 
 type ReviewStatus string
@@ -769,26 +1029,6 @@ type PageTransitionListQuery struct {
 	Site            string
 	FromPageStateID string
 	ToPageStateID   string
-}
-
-type KnowledgeSearchQuery struct {
-	ProjectID   string
-	Site        string
-	Module      string
-	Task        string
-	URL         string
-	Title       string
-	VisibleText string
-	Hints       []string
-	Embedding   []float32
-	Limit       int
-}
-
-type BusinessSystemProfileQuery struct {
-	ProjectID  string
-	Site       string
-	Module     string
-	SourceType MemorySourceType
 }
 
 type PageObservationEventListQuery struct {
@@ -853,6 +1093,8 @@ type MemoryPruneResult struct {
 	DeletedPageObservationEvents int `json:"deletedPageObservationEvents"`
 	DeletedMemoryContextEvents   int `json:"deletedMemoryContextEvents"`
 	DeletedFailureMemories       int `json:"deletedFailureMemories"`
+	UpdatedSiteTaskGuides        int `json:"updatedSiteTaskGuides,omitempty"`
+	UpdatedSiteManualSources     int `json:"updatedSiteManualSources,omitempty"`
 }
 
 type WorkflowEmbeddingHit struct {

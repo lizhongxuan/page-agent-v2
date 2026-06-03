@@ -86,6 +86,8 @@ export function buildMemoryTaskRunPayload(
 				reasoningSummary: truncateSummary(reasoningSummary),
 				resultSummary: truncateSummary(resultSummary),
 				isBranchNoise: !optimizedPath.includes(pageStateId),
+				...(action.beforeObservation ? { beforeObservation: action.beforeObservation } : {}),
+				...(action.afterObservation ? { afterObservation: action.afterObservation } : {}),
 			}
 		})
 		.filter((step): step is MemoryTaskRunActionStep => Boolean(step))
@@ -129,6 +131,7 @@ function applyTaskTemplates(task: string, templates: Map<string, string>): strin
 		)
 	}
 	return result
+		.replace(/\b[A-Za-z][A-Za-z0-9_-]{2,}\b(?=\s*(?:实例|instance))/gi, '{{instance_name}}')
 		.replace(/\b\d{3,}\b/g, '{{value}}')
 		.replace(/\b[A-Za-z]+-[A-Za-z0-9]+-[A-Za-z0-9]+\b/g, '{{value}}')
 }

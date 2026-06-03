@@ -52,6 +52,16 @@ vi.mock('./RemotePageController', () => ({
 		getWorkflowElements = vi.fn(async () => ({
 			visibleText: ['Code', 'Issues', 'Search all issues'],
 			controls: [{ role: 'link', name: 'Issues' }],
+			breadcrumbs: ['repo', 'issues'],
+			activeTabs: ['Issues'],
+			tables: [{ headers: ['Author', 'Issue', 'Status'] }],
+			activeSurfaces: [
+				{
+					surfaceType: 'modal',
+					title: 'Filter issues',
+					controls: [{ role: 'button', name: 'Apply' }],
+				},
+			],
 		}))
 		constructor() {
 			mocks.remotePageControllerInstances.push(this)
@@ -102,6 +112,16 @@ describe('MultiPageAgent memory observation', () => {
 			title: 'GitHub fixture',
 			visibleText: ['Code', 'Issues', 'Search all issues'],
 			controls: [{ role: 'link', name: 'Issues' }],
+			breadcrumbs: ['repo', 'issues'],
+			activeTabs: ['Issues'],
+			tables: [{ headers: ['Author', 'Issue', 'Status'] }],
+			activeSurfaces: [
+				{
+					surfaceType: 'modal',
+					title: 'Filter issues',
+					controls: [{ role: 'button', name: 'Apply' }],
+				},
+			],
 		})
 	})
 
@@ -114,7 +134,7 @@ describe('MultiPageAgent memory observation', () => {
 				return new Response(
 					JSON.stringify({
 						contextPrompt: '<webops_memory>Use service search.</webops_memory>',
-						knowledgeEvidence: [{ chunkId: 'chunk_1', title: 'Service manual', score: 0.9 }],
+						siteManualKnowledge: [{ id: 'manual_1', title: 'Service manual', score: 0.9 }],
 					}),
 					{ status: 200, headers: { 'content-type': 'application/json' } }
 				)
@@ -129,7 +149,6 @@ describe('MultiPageAgent memory observation', () => {
 				baseUrl: 'https://memory.example.test',
 				projectId: 'default',
 			},
-			knowledgeSettings: { enabled: true },
 		} as never)
 		const coreConfig = mocks.coreConfigs[0]
 		const runtimeAgent = {
@@ -149,6 +168,11 @@ describe('MultiPageAgent memory observation', () => {
 			projectId: 'default',
 			task: '查看服务状态',
 			currentUrl: 'http://127.0.0.1:60231/workflow-github-issues.html',
+			pageObservation: {
+				activeTabs: ['Issues'],
+				tables: [{ headers: ['Author', 'Issue', 'Status'] }],
+				activeSurfaces: [{ surfaceType: 'modal', title: 'Filter issues' }],
+			},
 		})
 		expect(runtimeAgent.pushObservation).toHaveBeenCalledWith(
 			'<webops_memory>Use service search.</webops_memory>'
@@ -244,7 +268,7 @@ describe('MultiPageAgent memory observation', () => {
 				task: '查看 kme-prod-001 运行状态',
 				startUrl: 'https://ops.example.com/service',
 				startedAt: Date.now(),
-				knowledgeHits: [],
+				memoryHits: [],
 				redactionReport: [],
 				steps: [
 					{
@@ -327,7 +351,7 @@ describe('MultiPageAgent memory observation', () => {
 				task: '查看 payment-api 运行状态',
 				startUrl: 'https://ops.example.com/service',
 				startedAt: Date.now(),
-				knowledgeHits: [],
+				memoryHits: [],
 				redactionReport: [],
 				steps: [
 					{
@@ -394,7 +418,7 @@ describe('MultiPageAgent memory observation', () => {
 						recommendedMode: 'normal',
 						contextPrompt: '',
 						evidenceRefs: [
-							{ source: 'knowledge', id: 'chunk_1', rank: 1, score: 0.9 },
+							{ source: 'manual', id: 'chunk_1', rank: 1, score: 0.9 },
 							{ source: 'experience', id: 'exp_1', rank: 2, score: 0.8 },
 						],
 					}),
@@ -434,7 +458,7 @@ describe('MultiPageAgent memory observation', () => {
 		expect(JSON.parse(taskRunBody)).toMatchObject({
 			memoryContextId: 'ctx_1',
 			memoryEvidenceRefs: [
-				{ source: 'knowledge', id: 'chunk_1', rank: 1, score: 0.9 },
+				{ source: 'manual', id: 'chunk_1', rank: 1, score: 0.9 },
 				{ source: 'experience', id: 'exp_1', rank: 2, score: 0.8 },
 			],
 		})
@@ -457,7 +481,7 @@ describe('MultiPageAgent memory observation', () => {
 						contextId: 'ctx_memory_1',
 						recommendedMode: 'guided',
 						evidenceRefs: [
-							{ source: 'knowledge', id: 'chunk_1', rank: 1, score: 0.8 },
+							{ source: 'manual', id: 'chunk_1', rank: 1, score: 0.8 },
 							{ source: 'experience', id: 'exp_1', rank: 2, score: 0.7 },
 						],
 					}),
@@ -499,7 +523,7 @@ describe('MultiPageAgent memory observation', () => {
 		expect(JSON.parse(taskRunCall?.init?.body as string)).toMatchObject({
 			memoryContextId: 'ctx_memory_1',
 			memoryEvidenceRefs: [
-				{ source: 'knowledge', id: 'chunk_1', rank: 1, score: 0.8 },
+				{ source: 'manual', id: 'chunk_1', rank: 1, score: 0.8 },
 				{ source: 'experience', id: 'exp_1', rank: 2, score: 0.7 },
 			],
 		})
@@ -534,7 +558,7 @@ describe('MultiPageAgent memory observation', () => {
 							promptChars: 64,
 							promptBudget: { maxChars: 5000, usedChars: 64 },
 							filteredEvidence: [
-								{ source: 'knowledge', id: 'chunk_wrong', reason: 'hard_gate_failed' },
+								{ source: 'manual', id: 'chunk_wrong', reason: 'hard_gate_failed' },
 							],
 						},
 						evidenceRefs: [
@@ -625,9 +649,7 @@ describe('MultiPageAgent memory observation', () => {
 					currentSurface: expect.objectContaining({ id: 'surface_filter_drawer' }),
 					debug: expect.objectContaining({
 						promptChars: 64,
-						filteredEvidence: [
-							{ source: 'knowledge', id: 'chunk_wrong', reason: 'hard_gate_failed' },
-						],
+						filteredEvidence: [{ source: 'manual', id: 'chunk_wrong', reason: 'hard_gate_failed' }],
 					}),
 					evidenceRefs: [
 						expect.objectContaining({

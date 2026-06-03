@@ -221,6 +221,49 @@ func TestAttributionServiceLabelsStaleWhenSuggestedTargetIsMissing(t *testing.T)
 	}
 }
 
+func TestAttributionServicePersistsManualStaleWhenManualConflictsWithDOM(t *testing.T) {
+	ctx := context.Background()
+	repo, err := registry.NewFileRepository(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewFileRepository failed: %v", err)
+	}
+	run := attributionRun(registry.TaskRunSuccess)
+	ref := registry.MemoryEvidenceRef{
+		ID:          "manual_restore_legacy",
+		Source:      registry.MemoryEvidenceSourceManual,
+		PageStateID: "page_service_list",
+		Payload: map[string]any{
+			"targetNames": []any{"Legacy Restore"},
+		},
+	}
+	observation := NormalizedPageObservation{
+		PageStateID: "page_service_list",
+		Controls: []registry.ControlSignature{
+			{Role: "button", Name: "Data Restore"},
+			{Role: "button", Name: "Start Restore"},
+		},
+	}
+
+	result, err := NewAttributionService(repo).EvaluateAndPersist(ctx, AttributionInput{
+		TaskRun:         run,
+		EvidenceRefs:    []registry.MemoryEvidenceRef{ref},
+		PageObservation: &observation,
+	})
+	if err != nil {
+		t.Fatalf("EvaluateAndPersist failed: %v", err)
+	}
+	if len(result.Events) != 1 || result.Events[0].EvidenceSource != registry.MemoryEvidenceSourceManual || result.Events[0].Label != registry.MemoryAttributionStale {
+		t.Fatalf("manual/DOM conflict should be recorded as stale manual evidence: %#v", result.Events)
+	}
+	stats, err := repo.GetMemoryEvidenceStats(ctx, "default", registry.MemoryEvidenceSourceManual, ref.ID)
+	if err != nil {
+		t.Fatalf("GetMemoryEvidenceStats failed: %v", err)
+	}
+	if stats.StaleCount != 1 || stats.UtilityScore >= 0 {
+		t.Fatalf("expected stale manual evidence penalty, got %#v", stats)
+	}
+}
+
 func TestAttributionServicePersistsEventsAndUpdatesStats(t *testing.T) {
 	ctx := context.Background()
 	repo, err := registry.NewFileRepository(t.TempDir())
@@ -258,6 +301,176 @@ func TestAttributionServicePersistsEventsAndUpdatesStats(t *testing.T) {
 	}
 	if stats.HelpfulCount != 1 || stats.UtilityScore <= 0 {
 		t.Fatalf("expected helpful stats update, got %#v", stats)
+	}
+}
+
+func TestAttributionServiceUpdatesSiteTaskGuideCounters(t *testing.T) {
+	ctx := context.Background()
+	repo, err := registry.NewFileRepository(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewFileRepository failed: %v", err)
+	}
+	service := NewAttributionService(repo)
+	seedAttributionGuide(t, ctx, repo, "guide_unused")
+	seedAttributionGuide(t, ctx, repo, "guide_misleading")
+	seedAttributionGuide(t, ctx, repo, "guide_mismatch")
+
+	unusedRun := attributionRun(registry.TaskRunSuccess)
+	unusedRun.ActionSteps = []registry.ActionStep{{ID: "step_search", PageStateID: "page_service_list", StepIndex: 1, ActionType: registry.StepFill, TargetName: "Service name"}}
+	if _, err := service.EvaluateAndPersist(ctx, AttributionInput{
+		TaskRun: unusedRun,
+		EvidenceRefs: []registry.MemoryEvidenceRef{{
+			ID:          "guide_unused",
+			Source:      registry.MemoryEvidenceSourceGuide,
+			PageStateID: "page_billing",
+			Payload:     map[string]any{"targetNames": []any{"Billing"}},
+		}},
+	}); err != nil {
+		t.Fatalf("EvaluateAndPersist unused failed: %v", err)
+	}
+	unusedGuide, err := repo.GetSiteTaskGuide(ctx, "guide_unused")
+	if err != nil {
+		t.Fatalf("GetSiteTaskGuide unused failed: %v", err)
+	}
+	if unusedGuide.UnusedCount != 1 || unusedGuide.SuccessCount != 1 || unusedGuide.MisleadingCount != 0 {
+		t.Fatalf("unused guide should not be rewarded or marked misleading: %#v", unusedGuide)
+	}
+
+	misleadingRun := attributionRun(registry.TaskRunSuccess)
+	misleadingRun.ActionSteps = []registry.ActionStep{{
+		ID:            "step_broken",
+		PageStateID:   "page_service_list",
+		StepIndex:     1,
+		ActionType:    registry.StepClick,
+		TargetName:    "Broken button",
+		ResultSummary: "failed to click: not visible",
+	}}
+	if _, err := service.EvaluateAndPersist(ctx, AttributionInput{
+		TaskRun: misleadingRun,
+		EvidenceRefs: []registry.MemoryEvidenceRef{{
+			ID:          "guide_misleading",
+			Source:      registry.MemoryEvidenceSourceGuide,
+			PageStateID: "page_service_list",
+			Payload:     map[string]any{"targetNames": []any{"Broken button"}},
+		}},
+	}); err != nil {
+		t.Fatalf("EvaluateAndPersist misleading failed: %v", err)
+	}
+	misleadingGuide, err := repo.GetSiteTaskGuide(ctx, "guide_misleading")
+	if err != nil {
+		t.Fatalf("GetSiteTaskGuide misleading failed: %v", err)
+	}
+	if misleadingGuide.MisleadingCount != 1 {
+		t.Fatalf("adopted broken target should mark guide misleading: %#v", misleadingGuide)
+	}
+
+	mismatchRun := attributionRun(registry.TaskRunSuccess)
+	mismatchRun.ActionSteps = []registry.ActionStep{{ID: "step_search", PageStateID: "page_service_list", StepIndex: 1, ActionType: registry.StepFill, TargetName: "Service name"}}
+	if _, err := service.EvaluateAndPersist(ctx, AttributionInput{
+		TaskRun: mismatchRun,
+		EvidenceRefs: []registry.MemoryEvidenceRef{{
+			ID:          "guide_mismatch",
+			Source:      registry.MemoryEvidenceSourceGuide,
+			PageStateID: "page_service_list",
+			Payload:     map[string]any{"targetNames": []any{"Legacy Search"}},
+		}},
+		PageObservation: &NormalizedPageObservation{
+			PageStateID: "page_service_list",
+			Controls: []registry.ControlSignature{
+				{Role: "textbox", Name: "Service name"},
+				{Role: "button", Name: "Search"},
+			},
+		},
+	}); err != nil {
+		t.Fatalf("EvaluateAndPersist mismatch failed: %v", err)
+	}
+	mismatchGuide, err := repo.GetSiteTaskGuide(ctx, "guide_mismatch")
+	if err != nil {
+		t.Fatalf("GetSiteTaskGuide mismatch failed: %v", err)
+	}
+	if mismatchGuide.AbandonedCount != 1 || mismatchGuide.StaleCount != 0 {
+		t.Fatalf("page mismatch should mark guide abandoned_mismatch: %#v", mismatchGuide)
+	}
+}
+
+func TestAttributionServiceUpdatesOnlyMatchedSiteTaskGuideState(t *testing.T) {
+	ctx := context.Background()
+	repo, err := registry.NewFileRepository(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewFileRepository failed: %v", err)
+	}
+	service := NewAttributionService(repo)
+	if err := repo.SaveSiteTaskGuide(ctx, registry.SiteTaskGuide{
+		ID:            "guide_restore",
+		ProjectID:     "default",
+		Site:          "ops.example.com",
+		TaskIntentKey: "restore_backup",
+		Summary:       "Restore data from a backup.",
+		Steps:         []registry.SiteTaskGuideStep{{Text: "Click Data Restore.", Target: "Data Restore"}},
+		UIStateEntries: []registry.SiteTaskGuideUIStateEntry{
+			{
+				ID:         "state_full_backup_tab",
+				Name:       "Full Backup tab",
+				StateType:  registry.SiteTaskGuideUIStatePage,
+				Confidence: 0.8,
+				Evidence: registry.SiteTaskGuideUIStateEvidence{
+					ControlsAll: []registry.ControlSignature{{Role: "button", Name: "Data Restore"}},
+				},
+				MinimumScore: 1,
+			},
+			{
+				ID:         "state_restore_modal",
+				Name:       "Restore modal",
+				StateType:  registry.SiteTaskGuideUIStateModal,
+				Confidence: 0.8,
+				Evidence: registry.SiteTaskGuideUIStateEvidence{
+					ControlsAll: []registry.ControlSignature{{Role: "button", Name: "Start Restore"}},
+				},
+				MinimumScore: 1,
+			},
+		},
+		Status:       registry.StatusActive,
+		SuccessCount: 1,
+	}); err != nil {
+		t.Fatalf("SaveSiteTaskGuide failed: %v", err)
+	}
+	run := attributionRun(registry.TaskRunSuccess)
+	run.ActionSteps = []registry.ActionStep{{
+		ID:            "step_restore_broken",
+		PageStateID:   "page_backups",
+		StepIndex:     1,
+		ActionType:    registry.StepClick,
+		TargetName:    "Data Restore",
+		ResultSummary: "failed to click: not visible",
+	}}
+
+	if _, err := service.EvaluateAndPersist(ctx, AttributionInput{
+		TaskRun: run,
+		EvidenceRefs: []registry.MemoryEvidenceRef{{
+			ID:          "guide_restore",
+			Source:      registry.MemoryEvidenceSourceGuide,
+			PageStateID: "page_backups",
+			Payload: map[string]any{
+				"matchedStateId": "state_full_backup_tab",
+				"targetNames":    []any{"Data Restore"},
+			},
+		}},
+	}); err != nil {
+		t.Fatalf("EvaluateAndPersist failed: %v", err)
+	}
+	guide, err := repo.GetSiteTaskGuide(ctx, "guide_restore")
+	if err != nil {
+		t.Fatalf("GetSiteTaskGuide failed: %v", err)
+	}
+	states := map[string]registry.SiteTaskGuideUIStateEntry{}
+	for _, state := range guide.UIStateEntries {
+		states[state.ID] = state
+	}
+	if states["state_full_backup_tab"].Confidence >= 0.8 {
+		t.Fatalf("matched state should be penalized, got %#v", states["state_full_backup_tab"])
+	}
+	if states["state_restore_modal"].Confidence != 0.8 {
+		t.Fatalf("unmatched state should not change, got %#v", states["state_restore_modal"])
 	}
 }
 
@@ -356,7 +569,7 @@ func TestAttributionServiceLabelsMixedEvidenceSet(t *testing.T) {
 		{ID: "stale_missing_filter", Source: registry.MemoryEvidenceSourceExperience, Payload: map[string]any{"targetNames": []string{"Old filter"}}},
 		{ID: "unused_path", Source: registry.MemoryEvidenceSourceExperience, Payload: map[string]any{"optimizedPath": []string{"page_home", "page_billing"}}},
 		{ID: "unused_target", Source: registry.MemoryEvidenceSourceExperience, Payload: map[string]any{"targetNames": []string{"Search"}}},
-		{ID: "neutral_doc", Source: registry.MemoryEvidenceSourceKnowledge},
+		{ID: "neutral_manual", Source: registry.MemoryEvidenceSourceManual},
 	}
 	observation := NormalizedPageObservation{
 		Controls: []registry.ControlSignature{
@@ -512,6 +725,31 @@ func attributionRun(status registry.TaskRunStatus) registry.TaskRun {
 				ResultSummary: "Opened service detail.",
 			},
 		},
+	}
+}
+
+func seedAttributionGuide(t *testing.T, ctx context.Context, repo registry.SiteTaskGuideRepository, id string) {
+	t.Helper()
+	if err := repo.SaveSiteTaskGuide(ctx, registry.SiteTaskGuide{
+		ID:            id,
+		ProjectID:     "default",
+		Site:          "ops.example.com",
+		TaskIntentKey: id,
+		Summary:       "Check service status.",
+		Steps:         []registry.SiteTaskGuideStep{{Text: "Use the recorded guide.", Target: "Service name"}},
+		UIStateEntries: []registry.SiteTaskGuideUIStateEntry{{
+			ID:        "state_service_list",
+			Name:      "Service list",
+			StateType: registry.SiteTaskGuideUIStatePage,
+			Evidence: registry.SiteTaskGuideUIStateEvidence{
+				ControlsAll: []registry.ControlSignature{{Role: "textbox", Name: "Service name"}},
+			},
+			MinimumScore: 1,
+		}},
+		Status:       registry.StatusActive,
+		SuccessCount: 1,
+	}); err != nil {
+		t.Fatalf("SaveSiteTaskGuide %s failed: %v", id, err)
 	}
 }
 

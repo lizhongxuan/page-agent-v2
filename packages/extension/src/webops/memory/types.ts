@@ -8,12 +8,38 @@ export interface MemoryPageControl {
 	name: string
 	value?: string
 	disabled?: boolean
+	selected?: boolean
+	enabled?: boolean
+}
+
+export interface MemoryPageTable {
+	caption?: string
+	headers?: string[]
+}
+
+export interface MemoryPageSurface {
+	surfaceType?:
+		| 'modal'
+		| 'drawer'
+		| 'popover'
+		| 'dropdown'
+		| 'carousel'
+		| 'toast'
+		| 'wizard'
+		| 'unknown'
+	title?: string
+	text?: string[]
+	controls?: MemoryPageControl[]
 }
 
 export interface MemoryPageObservation {
 	title: string
 	visibleText: string[]
 	controls: MemoryPageControl[]
+	breadcrumbs?: string[]
+	activeTabs?: string[]
+	tables?: MemoryPageTable[]
+	activeSurfaces?: MemoryPageSurface[]
 }
 
 export interface MemoryPageObservationRequest extends MemoryPageObservation {
@@ -42,7 +68,13 @@ export interface MemoryContextRequest {
 	limit?: number
 }
 
-export type MemoryEvidenceSource = 'knowledge' | 'experience' | 'failure' | 'navigation'
+export type MemoryEvidenceSource =
+	| 'manual'
+	| 'guide'
+	| 'experience'
+	| 'failure'
+	| 'navigation'
+	| (string & {})
 
 export type MemoryAttributionLabel = 'helpful' | 'unused' | 'misleading' | 'stale' | 'neutral'
 
@@ -78,11 +110,76 @@ export interface MemoryContextDebug {
 		maxChars?: number
 		usedChars?: number
 	}
+	candidateSiteTaskGuides?: {
+		id: string
+		taskScore?: number
+		passed?: boolean
+		reason?: string
+		matchedStateId?: string
+	}[]
+	uiStateMatches?: {
+		guideId?: string
+		stateId?: string
+		score?: number
+		minimumScore?: number
+		passed?: boolean
+		matched?: string[]
+		missing?: string[]
+		reason?: string
+	}[]
 	filteredEvidence?: {
 		source: string
 		id?: string
 		reason: string
 	}[]
+}
+
+export interface MemorySiteTaskGuide {
+	id: string
+	confidence?: number
+	summary?: string
+	whenToUse?: string
+	matchedStateId?: string
+	matchedStateName?: string
+	startStepOffset?: number
+	matchReasons?: string[]
+	pageGuards?: string[]
+	steps?: string[]
+	abandonRules?: string[]
+	sourceRefs?: string[]
+	[key: string]: unknown
+}
+
+export interface MemorySiteManualKnowledge {
+	id: string
+	wikiPageId?: string
+	chunkId?: string
+	confidence?: number
+	summary?: string
+	text?: string
+	sourceRefs?: string[]
+	pageGuards?: Record<string, unknown>
+	targetTerms?: string[]
+	[key: string]: unknown
+}
+
+export interface MemoryPageObservationSignal {
+	id?: string
+	pageKey?: string
+	summary?: string
+	confidence?: number
+	site?: string
+	url?: string
+	urlPattern?: string
+	urlFamily?: string
+	title?: string
+	breadcrumbs?: string[]
+	activeTabs?: string[]
+	visibleTextSample?: string
+	controlSignatures?: MemoryPageControl[]
+	tables?: MemoryPageTable[]
+	activeSurfaces?: MemoryPageSurface[]
+	[key: string]: unknown
 }
 
 export interface MemoryContextResponse {
@@ -92,20 +189,9 @@ export interface MemoryContextResponse {
 	evidenceRefs?: MemoryEvidenceRef[]
 	currentPageState?: MemoryPageSummary
 	currentSurface?: MemorySurfaceSummary
-	businessContext?: {
-		summary?: string
-	}
-	knowledgeEvidence?: {
-		chunkId: string
-		title?: string
-		snippet?: string
-		score?: number
-	}[]
-	experienceHints?: {
-		id: string
-		summary?: string
-		confidence?: number
-	}[]
+	siteTaskGuides?: MemorySiteTaskGuide[]
+	siteManualKnowledge?: MemorySiteManualKnowledge[]
+	pageObservationSignal?: MemoryPageObservationSignal
 	failureWarnings?: {
 		id?: string
 		summary?: string
@@ -130,6 +216,8 @@ export interface MemoryTaskRunActionStep {
 	reasoningSummary?: string
 	resultSummary?: string
 	isBranchNoise?: boolean
+	beforeObservation?: MemoryPageObservationSignal
+	afterObservation?: MemoryPageObservationSignal
 }
 
 export interface MemoryTaskRunRequest {
@@ -154,32 +242,8 @@ export interface MemoryTaskRunResponse {
 	[key: string]: unknown
 }
 
-export interface MemoryDocument {
-	id?: string
-	projectId?: string
-	projectKey?: string
-	title: string
-	source: string
-	url?: string
-	content: string
-	tags?: string[]
-}
-
-export interface MemoryDocumentImportRequest {
-	projectId?: string
-	projectKey?: string
-	documents: MemoryDocument[]
-}
-
-export interface MemoryDocumentImportResponse {
-	ok?: boolean
-	imported?: number
-	[key: string]: unknown
-}
-
 export interface MemoryClientLike {
 	observePage?(request: MemoryPageObservationRequest): Promise<MemoryPageObservationResponse>
 	getContext?(request: MemoryContextRequest): Promise<MemoryContextResponse>
 	completeTaskRun?(request: MemoryTaskRunRequest): Promise<MemoryTaskRunResponse>
-	importDocuments?(request: MemoryDocumentImportRequest): Promise<MemoryDocumentImportResponse>
 }

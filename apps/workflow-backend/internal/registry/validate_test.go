@@ -1,6 +1,9 @@
 package registry
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestValidateWorkflowRecipeAcceptsGitHubIssueWorkflow(t *testing.T) {
 	recipe := sampleWorkflowRecipe()
@@ -90,6 +93,107 @@ func TestValidateWorkflowCardRejectsSensitiveToken(t *testing.T) {
 	}
 	if err.Error() != "workflow card contains sensitive text" {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestValidateSiteManualImportRequiresSiteAndContent(t *testing.T) {
+	err := ValidateSiteManualImport(SiteManualImportRequest{
+		ProjectID:  "default",
+		Title:      "Manual",
+		SourceType: SiteManualSourceMarkdown,
+		Content:    "content",
+	})
+	if err == nil {
+		t.Fatal("expected missing site to be rejected")
+	}
+
+	err = ValidateSiteManualImport(SiteManualImportRequest{
+		ProjectID:  "default",
+		Site:       "ops.example.com",
+		Title:      "Manual",
+		SourceType: SiteManualSourceMarkdown,
+	})
+	if err == nil {
+		t.Fatal("expected empty content to be rejected")
+	}
+}
+
+func TestValidateSiteManualRejectsLongSummary(t *testing.T) {
+	err := ValidateSiteManualWikiPage(SiteManualWikiPage{
+		ID:        "manual_page_restore",
+		ProjectID: "default",
+		Site:      "ops.example.com",
+		PageKey:   "restore",
+		Title:     "Restore",
+		Summary:   strings.Repeat("a", MaxSummaryChars+1),
+		Status:    StatusActive,
+	})
+	if err == nil {
+		t.Fatal("expected long wiki summary to be rejected")
+	}
+}
+
+func TestValidateSiteTaskGuideRejectsDynamicTargets(t *testing.T) {
+	err := ValidateSiteTaskGuide(SiteTaskGuide{
+		ID:                "guide_restore",
+		ProjectID:         "default",
+		Site:              "ops.example.com",
+		TaskIntentKey:     "restore_backup",
+		TaskIntentSummary: "Restore backup",
+		Summary:           "Restore from latest backup.",
+		UIStateEntries: []SiteTaskGuideUIStateEntry{{
+			ID:        "state_restore",
+			StateType: SiteTaskGuideUIStatePage,
+			Evidence: SiteTaskGuideUIStateEvidence{
+				ControlsAll: []ControlSignature{{Role: "button", Name: "Restore"}},
+			},
+		}},
+		Status: StatusActive,
+		Steps: []SiteTaskGuideStep{
+			{Text: "Click element_33"},
+		},
+	})
+	if err == nil {
+		t.Fatal("expected dynamic element target to be rejected")
+	}
+}
+
+func TestValidateSiteTaskGuideRequiresUIStateEntries(t *testing.T) {
+	err := ValidateSiteTaskGuide(SiteTaskGuide{
+		ID:                "guide_restore",
+		ProjectID:         "default",
+		Site:              "ops.example.com",
+		TaskIntentKey:     "restore_backup",
+		TaskIntentSummary: "Restore backup",
+		Summary:           "Restore from latest backup.",
+		Status:            StatusActive,
+		Steps:             []SiteTaskGuideStep{{Text: "Click Restore.", Target: "Restore"}},
+	})
+	if err == nil || err.Error() != "active site task guide requires ui state entries" {
+		t.Fatalf("expected active guide without ui states to be rejected, got %v", err)
+	}
+}
+
+func TestValidateSiteTaskGuideRejectsDynamicUIStateEvidence(t *testing.T) {
+	err := ValidateSiteTaskGuide(SiteTaskGuide{
+		ID:                "guide_restore",
+		ProjectID:         "default",
+		Site:              "ops.example.com",
+		TaskIntentKey:     "restore_backup",
+		TaskIntentSummary: "Restore backup",
+		Summary:           "Restore from latest backup.",
+		Status:            StatusActive,
+		UIStateEntries: []SiteTaskGuideUIStateEntry{{
+			ID:        "state_restore",
+			StateType: SiteTaskGuideUIStatePage,
+			Evidence: SiteTaskGuideUIStateEvidence{
+				ControlsAll: []ControlSignature{{Role: "button", Name: "element_33"}},
+			},
+		}},
+		Steps: []SiteTaskGuideStep{{Text: "Click Restore.", Target: "Restore"}},
+	})
+	if err == nil {
+		t.Fatal("expected dynamic ui state evidence to be rejected")
 	}
 }
 

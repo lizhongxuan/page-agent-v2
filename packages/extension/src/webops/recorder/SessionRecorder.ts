@@ -11,7 +11,7 @@ export class SessionRecorder {
 			startUrl: input.startUrl,
 			startedAt: Date.now(),
 			steps: [],
-			knowledgeHits: [],
+			memoryHits: [],
 			redactionReport: [],
 		}
 	}
@@ -30,9 +30,9 @@ export class SessionRecorder {
 		this.session.steps.push({ ...action, value })
 	}
 
-	addKnowledgeHits(hits: RecordedSession['knowledgeHits']) {
+	addMemoryHits(hits: RecordedSession['memoryHits']) {
 		if (!this.session) return
-		this.session.knowledgeHits.push(...hits)
+		this.session.memoryHits.push(...hits)
 	}
 
 	setMemoryContext(context: RecordedMemoryContext) {

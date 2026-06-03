@@ -1,22 +1,16 @@
 # Workflow Backend
 
-The workflow backend stores PageAgent WebOps memory: business profiles, page
-observations, page states, page transitions, task runs, experience memories,
-failure memories, review items, and knowledge documents.
+The workflow backend stores Page Agent WebOps memory for one local extension
+configuration. It is not a generic RAG service. The current memory model has two
+long-lived data lines:
 
-The PageAgent main flow should use the V2 memory endpoints:
+- `SiteTaskGuide`: reusable task guides generated from real successful user
+  tasks on a specific site.
+- `SiteManualWiki`: concise site manual knowledge compiled from user-imported
+  manuals.
 
-```text
-POST /api/memory/documents
-POST /api/memory/page-observations
-POST /api/memory/context
-POST /api/memory/task-runs
-GET  /api/memory/inspector
-GET  /api/memory/reviews
-POST /api/memory/reviews/{id}/approve
-POST /api/memory/reviews/{id}/reject
-POST /api/memory/maintenance/prune
-```
+The backend must not expose or preserve the previous generic document or global
+business-summary model.
 
 ## Local Startup
 
@@ -24,9 +18,9 @@ POST /api/memory/maintenance/prune
 npm run workflow:deploy
 ```
 
-This is the only local startup command for normal use. It starts PostgreSQL with
-pgvector, builds and starts the workflow backend, disables Qdrant, and copies the
-Chrome extension package to the desktop.
+This is the only local startup command for normal use. It starts the workflow
+backend, prints the backend URL, and copies the Chrome extension package to the
+desktop.
 
 Useful defaults:
 
@@ -34,128 +28,148 @@ Useful defaults:
 WORKFLOW_STORAGE_BACKEND=postgres
 WORKFLOW_DATA_DIR=$HOME/.page-agent/workflow-backend
 WORKFLOW_BACKEND_ADDR=127.0.0.1:38402
-WORKFLOW_DISABLE_QDRANT=true
 ```
 
-The script closes existing listeners on the backend and PostgreSQL ports before
-starting new processes.
+The script closes existing listeners on the backend port before starting a new
+process.
 
-Memory records are upserted by stable keys where they represent reusable
-knowledge:
+## API Overview
 
-- documents are keyed by project, source, and URL/title, so re-importing the
-  same document updates it instead of creating a timestamped copy;
-- document chunks replace previous chunks for the same document, so removed
-  paragraphs stop being searchable;
-- page observation events are keyed by project, site, URL pattern, and title,
-  then updated with `seenCount` and `lastSeenAt`;
-- repeated failure memories are keyed by the reusable task/page/action failure
-  signature and updated with `occurrenceCount`.
-
-Task runs, context events, and observation events are still useful audit data,
-but they are bounded by retention limits instead of growing forever:
-
-```bash
-WORKFLOW_MEMORY_MAX_TASK_RUNS_PER_SITE=200
-WORKFLOW_MEMORY_MAX_PAGE_OBSERVATIONS_PER_SITE=200
-WORKFLOW_MEMORY_MAX_CONTEXT_EVENTS_PER_PROJECT=500
-WORKFLOW_MEMORY_MAX_FAILURES_PER_SITE=100
-```
-
-The local database uses:
+The Page Agent extension should use one backend URL, for example:
 
 ```text
-database: page_agent_workflow
-user: page_agent
-port: 54329
-```
-
-Do not reuse the compose password outside local development.
-
-## WebOps Memory V2
-
-Use one backend URL in the extension, for example:
-
-```text
-Workflow Memory Backend: http://127.0.0.1:38402
+Workflow Backend: http://127.0.0.1:38402
 Project ID: default
 API Key: leave empty for local backend
 ```
 
-`Knowledge enabled` in the extension only controls whether document evidence and
-page summaries are injected into the agent context. It does not require a
-separate knowledge backend URL.
+Core endpoints:
 
-### Import Documents
+```text
+POST /api/memory/site-manuals/import
+GET  /api/memory/site-manuals
+GET  /api/memory/site-manuals/{id}
+GET  /api/memory/site-manuals/{id}/wiki
+POST /api/memory/site-manuals/{id}/rebuild
+POST /api/memory/site-manuals/{id}/disable
+POST /api/memory/site-manuals/{id}/enable
+DELETE /api/memory/site-manuals/{id}
+POST /api/memory/site-manuals/preview-context
 
-Import one document:
+POST /api/memory/page-observations
+POST /api/memory/context
+POST /api/memory/task-runs
+GET  /api/memory/site-task-guides
+GET  /api/memory/site-task-guides/{id}
+POST /api/memory/site-task-guides/{id}/disable
+POST /api/memory/site-task-guides/{id}/feedback
+GET  /api/memory/inspector
+POST /api/memory/maintenance/prune
+```
+
+Legacy generic document endpoints are removed, not deprecated, and should not be
+called by the extension.
+
+## Import A Site Manual
+
+Manual import requires a site. Global, unscoped documents are rejected.
 
 ```bash
-curl -s http://127.0.0.1:38402/api/memory/documents \
+curl -s http://127.0.0.1:38402/api/memory/site-manuals/import \
   -H 'content-type: application/json' \
   -d '{
     "projectId": "default",
-    "documents": [{
-      "title": "Service management manual",
-      "source": "manual",
-      "url": "https://ops.example.com/services",
-      "content": "The service page can search by service name and read the status column.",
-      "tags": ["service", "status"]
-    }]
+    "site": "ops.example.com",
+    "module": "backup",
+    "title": "Instance backup and restore manual",
+    "sourceType": "markdown",
+    "content": "The backup page has Full Backup and Incremental Backup tabs. Data restore starts from a Full Backup record and requires selecting a node IP before confirmation."
   }'
 ```
 
-The import stores knowledge chunks and updates `business_system_profiles`.
-Re-importing the same project/source/URL updates the existing document and
-replaces its chunks.
+The backend stores the raw source, compiles it into `SiteManualWikiPage` records,
+and creates short `SiteManualWikiChunk` records for context retrieval. Raw source
+text is not directly injected into Page Agent prompts.
 
-### Observe A Page
+## Preview Manual Context
+
+The manual library UI uses the same backend preview endpoint that task context
+uses. This prevents the UI from simulating ranking differently from runtime.
+
+```bash
+curl -s http://127.0.0.1:38402/api/memory/site-manuals/preview-context \
+  -H 'content-type: application/json' \
+  -d '{
+    "projectId": "default",
+    "site": "ops.example.com",
+    "module": "backup",
+    "task": "restore an instance from the latest full backup",
+    "currentUrl": "https://ops.example.com/instances/pg-1/backups",
+    "pageObservation": {
+      "title": "Data backup",
+      "visibleText": ["Data backup", "Full Backup", "Data Restore"],
+      "controls": [{"role": "button", "name": "Data Restore"}]
+    }
+  }'
+```
+
+The response includes matched wiki chunks, filtered reasons, and the exact
+`<site_manual_knowledge>` prompt fragment.
+
+## Observe A Page
+
+Page observations are lightweight signals for hard gating and debugging. They do
+not create a long-lived page knowledge base.
 
 ```bash
 curl -s http://127.0.0.1:38402/api/memory/page-observations \
   -H 'content-type: application/json' \
   -d '{
     "projectId": "default",
-    "task": "check service status",
-    "url": "https://ops.example.com/services?k=kme-prod-001",
-    "title": "Service management",
-    "visibleText": ["Service management", "Service name", "Status"],
-    "controls": [{"role": "textbox", "name": "Service name"}],
+    "task": "restore an instance from the latest full backup",
+    "url": "https://ops.example.com/instances",
+    "title": "Instances",
+    "visibleText": ["Instances", "Data backup"],
+    "controls": [{"role": "link", "name": "lzxpg"}],
     "source": "before_task"
   }'
 ```
 
-The backend normalizes URL and page fingerprints. Variable instance values stay
-out of searchable memory. Re-observing the same page updates the existing
-observation event instead of appending a new timestamped event.
+## Request Memory Context
 
-### Request Memory Context
-
-Call this before a task. The response includes `<webops_memory>` plus business
-context, current page, navigation hints, experience hints, failure warnings,
-and knowledge evidence.
+Call this before a task. The response includes `<site_task_guides>` and
+`<site_manual_knowledge>` when same-site, same-module, page-gated candidates are
+available.
 
 ```bash
 curl -s http://127.0.0.1:38402/api/memory/context \
   -H 'content-type: application/json' \
   -d '{
     "projectId": "default",
-    "task": "check service status",
-    "currentUrl": "https://ops.example.com/services",
+    "task": "restore an instance from the latest full backup",
+    "currentUrl": "https://ops.example.com/instances/pg-1/backups",
     "pageObservation": {
-      "title": "Service management",
-      "visibleText": ["Service management", "Status"],
-      "controls": [{"role": "textbox", "name": "Service name"}]
+      "title": "Data backup",
+      "visibleText": ["Data backup", "Full Backup", "Data Restore"],
+      "controls": [{"role": "button", "name": "Data Restore"}]
     },
-    "riskPolicy": {"blocked": ["destructive"]},
+    "metadata": {"module": "backup"},
     "mode": "before_task"
   }'
 ```
 
-### Submit A Task Run
+Runtime rules:
 
-Call this after a task. The backend saves the task run, optimizes the path,
-updates transitions, and writes experience or failure memory.
+- Current DOM/page observation has higher priority than memory.
+- `SiteTaskGuide` is a reference guide, not a replay script.
+- If a guide does not match the current page, Page Agent must abandon it.
+- `SiteManualWiki` is auxiliary manual knowledge and can be stale.
+
+## Submit A Task Run
+
+Call this after a task. The backend saves the task run, compresses noisy action
+paths, and creates or updates a reusable `SiteTaskGuide` when the evidence is
+good enough.
 
 ```bash
 curl -s http://127.0.0.1:38402/api/memory/task-runs \
@@ -163,72 +177,54 @@ curl -s http://127.0.0.1:38402/api/memory/task-runs \
   -d '{
     "projectId": "default",
     "site": "ops.example.com",
-    "taskTemplate": "check {{service_name}} status",
-    "summary": "Checked the service status.",
-    "originalPath": ["page_service_list", "page_service_detail"],
+    "taskTemplate": "restore {{instance_name}} from latest full backup",
+    "summary": "Restored an instance from the latest full backup.",
+    "originalPath": ["instances", "instance_detail", "monitoring", "instance_detail", "backups", "restore_dialog"],
     "status": "success",
     "actionSteps": [{
-      "pageStateId": "page_service_list",
       "stepIndex": 1,
-      "actionType": "fill",
-      "targetName": "Service name",
-      "valueTemplate": "{{service_name}}"
+      "actionType": "click",
+      "targetName": "Instance name",
+      "valueTemplate": "{{instance_name}}"
+    }, {
+      "stepIndex": 2,
+      "actionType": "click",
+      "targetName": "Data backup"
+    }, {
+      "stepIndex": 3,
+      "actionType": "click",
+      "targetName": "Full Backup"
+    }, {
+      "stepIndex": 4,
+      "actionType": "click",
+      "targetName": "Data Restore"
     }]
   }'
 ```
 
-### Inspect Saved Memory
+Task guide generation must not store concrete instance names, IP addresses,
+backup IDs, account names, tokens, or one-time IDs in searchable text.
+
+## Inspect Saved Memory
 
 ```bash
 curl -s 'http://127.0.0.1:38402/api/memory/inspector?projectId=default'
 ```
 
-### Memory Attribution Feedback
+Inspector output should make runtime behavior debuggable:
 
-Memory attribution treats a task run as evidence about which recalled memory was
-actually useful. A final task `success` or `failed` result is only a weak
-outcome signal. It must not directly reward or punish every recalled memory
-item.
+- current page observation signal;
+- candidate task guides and manual wiki chunks;
+- hard-gate matched and filtered reasons;
+- final prompt fragments injected into Page Agent;
+- feedback labels such as `used_helpful`, `abandoned_mismatch`,
+  `used_misleading`, `manual_helpful`, `manual_stale`, and `manual_unused`.
 
-The backend should instead compare recalled evidence with the real task path and
-action targets:
+## Prune Old Memory Logs
 
-- `helpful`: the recalled evidence was actually used and aligned with the real
-  path or target without immediately causing a bad branch or selector failure;
-- `unused`: the evidence was recalled but the agent did not actually use it;
-- `misleading`: the evidence was used, but it pushed the task into a wrong
-  branch, rollback, selector failure, or other avoidable error path;
-- `stale`: the evidence points to a page rule, control, or route that no longer
-  matches the current product state;
-- `neutral`: the backend does not have enough execution evidence to decide.
-
-Use the inspector to review both what the backend injected and how it evaluated
-that injection. The intended debug flow is:
-
-```bash
-curl -s 'http://127.0.0.1:38402/api/memory/inspector?projectId=default'
-```
-
-Inspector output should let you inspect:
-
-- the recalled `evidence` items or `evidenceRefs` attached to a memory context;
-- the attribution `label` assigned to each evidence item;
-- the per-evidence `signals` used for that decision;
-- the accumulated evidence `stats` used by reranking.
-
-To reproduce an attribution experiment, seed two similar memories for the same
-task, then run the task so the agent first follows the wrong hint and later
-finishes through the correct path. After that:
-
-1. check the first context and confirm both hints can be recalled;
-2. inspect the saved task run and attribution events;
-3. request context again and verify the misleading hint has lower rank or is no
-   longer injected into top results.
-
-### Prune Old Memory Logs
-
-The backend automatically applies the configured retention limits after memory
-writes. To force cleanup manually:
+The backend can prune log-like records by policy. Reusable guide and manual wiki
+records are updated or disabled by stable IDs rather than written into timestamp
+directories.
 
 ```bash
 curl -s http://127.0.0.1:38402/api/memory/maintenance/prune \
@@ -243,30 +239,22 @@ curl -s http://127.0.0.1:38402/api/memory/maintenance/prune \
   }'
 ```
 
-Reusable records such as page states, transitions, approved experiences,
-business profiles, and current knowledge documents are not deleted by this
-endpoint. It only removes older log-like records beyond the requested limits.
+## Tests
 
-## WebOps Memory E2E
-
-Run the V2 WebOps memory E2E from the repository root:
+Backend:
 
 ```bash
-npm run webops-memory:v2:e2e
+cd apps/workflow-backend
+go test ./...
 ```
 
-The V2 test only calls `/api/memory/*`, drives Chrome with Playwright, and writes:
+Extension:
 
-```text
-report.json
-backend-saved-data.json
-chrome-user-flow.png
-user-flow-report.html
-backend.log
-postgres.log
+```bash
+npm run typecheck
+npm test
 ```
 
-## Qdrant
-
-The local startup path does not use Qdrant. `npm run workflow:deploy` explicitly
-sets `WORKFLOW_DISABLE_QDRANT=true`.
+Chrome E2E should cover manual import, wiki preview, context injection, task guide
+creation, second-run guide reuse, stale/abandoned feedback, and residual old API
+checks.

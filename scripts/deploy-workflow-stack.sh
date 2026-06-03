@@ -23,9 +23,10 @@ POSTGRES_DB="${POSTGRES_DB:-page_agent_workflow}"
 POSTGRES_USER="${POSTGRES_USER:-page_agent}"
 POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-page_agent_dev}"
 WORKFLOW_POSTGRES_URL="postgres://$POSTGRES_USER:$POSTGRES_PASSWORD@127.0.0.1:$POSTGRES_PORT/$POSTGRES_DB?sslmode=disable"
+LEGACY_LAUNCH_AGENT_LABEL="com.page-agent.workflow-backend"
+LEGACY_LAUNCH_AGENT_PLIST="$HOME/Library/LaunchAgents/$LEGACY_LAUNCH_AGENT_LABEL.plist"
 
 BACKEND_BIN="$RUNTIME_DIR/workflow-backend"
-BACKEND_PID_FILE="$RUNTIME_DIR/workflow-backend.pid"
 BACKEND_LOG="$RUNTIME_DIR/workflow-backend.log"
 
 mkdir -p "$RUNTIME_DIR" "$WORKFLOW_DATA_DIR" "$POSTGRES_DATA_DIR"
@@ -91,18 +92,21 @@ close_port() {
 	exit 1
 }
 
-wait_for_url() {
-	local url="$1"
-	local label="$2"
+wait_for_backend() {
+	local port="$1"
+	local url="http://$WORKFLOW_BACKEND_ADDR/ready"
+	local listener_pids
 	for _ in $(seq 1 90); do
-		if curl --noproxy '*' -fsS "$url" >/dev/null 2>&1; then
-			echo "$label ready: $url"
+		listener_pids="$(lsof -nP -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null | sort -u || true)"
+		if [[ -n "$listener_pids" ]] && curl --noproxy '*' -fsS "$url" >/dev/null 2>&1; then
+			echo "Workflow backend ready: $url"
 			return
 		fi
 		sleep 1
 	done
-	echo "$label did not become ready: $url" >&2
+	echo "Workflow backend did not become ready on port $port." >&2
 	echo "Backend log: $BACKEND_LOG" >&2
+	sed -n '1,160p' "$BACKEND_LOG" >&2 || true
 	exit 1
 }
 
@@ -123,12 +127,26 @@ extension_zip_path() {
 }
 
 prepare_ports() {
+	stop_legacy_launch_agent
 	stop_docker_container_by_name "$POSTGRES_CONTAINER_NAME"
 	stop_docker_containers_on_port "$POSTGRES_PORT"
 	stop_docker_containers_on_port "$WORKFLOW_BACKEND_PORT"
 	close_port "$POSTGRES_PORT" "PostgreSQL"
 	close_port "$WORKFLOW_BACKEND_PORT" "workflow backend"
-	rm -f "$BACKEND_PID_FILE"
+	rm -f "$RUNTIME_DIR/workflow-backend.pid"
+}
+
+stop_legacy_launch_agent() {
+	local domain="gui/$(id -u)"
+	if launchctl print "$domain/$LEGACY_LAUNCH_AGENT_LABEL" >/dev/null 2>&1; then
+		echo "Stopping legacy LaunchAgent: $LEGACY_LAUNCH_AGENT_LABEL"
+		launchctl bootout "$domain/$LEGACY_LAUNCH_AGENT_LABEL" >/dev/null 2>&1 || true
+	fi
+	launchctl disable "$domain/$LEGACY_LAUNCH_AGENT_LABEL" >/dev/null 2>&1 || true
+	if [[ -f "$LEGACY_LAUNCH_AGENT_PLIST" ]]; then
+		echo "Removing legacy LaunchAgent plist: $LEGACY_LAUNCH_AGENT_PLIST"
+		rm -f "$LEGACY_LAUNCH_AGENT_PLIST"
+	fi
 }
 
 start_postgres() {
@@ -163,24 +181,53 @@ build_backend() {
 }
 
 start_backend() {
-	WORKFLOW_BACKEND_ADDR="$WORKFLOW_BACKEND_ADDR" \
-		WORKFLOW_DATA_DIR="$WORKFLOW_DATA_DIR" \
-		WORKFLOW_STORAGE_BACKEND=postgres \
-		WORKFLOW_POSTGRES_URL="$WORKFLOW_POSTGRES_URL" \
-		WORKFLOW_DISABLE_QDRANT=true \
-		LLM_BASE_URL="${LLM_BASE_URL:-}" \
-		LLM_API_KEY="${LLM_API_KEY:-}" \
-		LLM_MODEL="${LLM_MODEL:-gpt-5.4}" \
-		EMBEDDING_BASE_URL="${EMBEDDING_BASE_URL:-}" \
-		EMBEDDING_API_KEY="${EMBEDDING_API_KEY:-}" \
-		EMBEDDING_MODEL="${EMBEDDING_MODEL:-bge-m3}" \
-		NO_PROXY="127.0.0.1,localhost,${NO_PROXY:-}" \
-		no_proxy="127.0.0.1,localhost,${no_proxy:-}" \
-		nohup "$BACKEND_BIN" >"$BACKEND_LOG" 2>&1 &
-	local backend_pid="$!"
-	echo "$backend_pid" >"$BACKEND_PID_FILE"
-	disown "$backend_pid" >/dev/null 2>&1 || true
-	wait_for_url "http://$WORKFLOW_BACKEND_ADDR/ready" "Workflow backend"
+	close_port "$WORKFLOW_BACKEND_PORT" "workflow backend"
+	write_backend_launch_agent
+	launchctl enable "gui/$(id -u)/$LEGACY_LAUNCH_AGENT_LABEL" >/dev/null 2>&1 || true
+	launchctl bootstrap "gui/$(id -u)" "$LEGACY_LAUNCH_AGENT_PLIST" >/dev/null 2>&1 || true
+	launchctl kickstart -k "gui/$(id -u)/$LEGACY_LAUNCH_AGENT_LABEL" >/dev/null 2>&1 || true
+	wait_for_backend "$WORKFLOW_BACKEND_PORT"
+}
+
+write_backend_launch_agent() {
+	mkdir -p "$(dirname "$LEGACY_LAUNCH_AGENT_PLIST")"
+	cat >"$LEGACY_LAUNCH_AGENT_PLIST" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>$LEGACY_LAUNCH_AGENT_LABEL</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/env</string>
+    <string>WORKFLOW_BACKEND_ADDR=$WORKFLOW_BACKEND_ADDR</string>
+    <string>WORKFLOW_DATA_DIR=$WORKFLOW_DATA_DIR</string>
+    <string>WORKFLOW_STORAGE_BACKEND=postgres</string>
+    <string>WORKFLOW_POSTGRES_URL=$WORKFLOW_POSTGRES_URL</string>
+    <string>LLM_BASE_URL=${LLM_BASE_URL:-}</string>
+    <string>LLM_API_KEY=${LLM_API_KEY:-}</string>
+    <string>LLM_MODEL=${LLM_MODEL:-gpt-5.4}</string>
+    <string>EMBEDDING_BASE_URL=${EMBEDDING_BASE_URL:-}</string>
+    <string>EMBEDDING_API_KEY=${EMBEDDING_API_KEY:-}</string>
+    <string>EMBEDDING_MODEL=${EMBEDDING_MODEL:-bge-m3}</string>
+    <string>NO_PROXY=127.0.0.1,localhost,${NO_PROXY:-}</string>
+    <string>no_proxy=127.0.0.1,localhost,${no_proxy:-}</string>
+    <string>$BACKEND_BIN</string>
+  </array>
+  <key>KeepAlive</key>
+  <true/>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>WorkingDirectory</key>
+  <string>$RUNTIME_DIR</string>
+  <key>StandardOutPath</key>
+  <string>$BACKEND_LOG</string>
+  <key>StandardErrorPath</key>
+  <string>$BACKEND_LOG</string>
+</dict>
+</plist>
+EOF
 }
 
 build_extension() {
@@ -193,6 +240,10 @@ build_extension() {
 print_summary() {
 	echo
 	echo "Local Page Agent workflow memory is running."
+	echo
+	echo "Workflow backend: http://$WORKFLOW_BACKEND_ADDR"
+	echo "Set workflowBackend to: http://$WORKFLOW_BACKEND_ADDR"
+	echo "Extension package: $(extension_zip_path)"
 	echo
 	echo "Backend:"
 	echo "- URL: http://$WORKFLOW_BACKEND_ADDR"

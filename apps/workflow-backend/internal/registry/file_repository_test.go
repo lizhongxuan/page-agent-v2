@@ -343,66 +343,213 @@ func TestFileRepositoryPersistsTaskRunsAndPageGraph(t *testing.T) {
 	}
 }
 
-func TestFileRepositorySearchesKnowledgeChunks(t *testing.T) {
+func TestFileRepositoryPersistsSiteManualsAndWikiAcrossRestart(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	repo, err := NewFileRepository(dir)
+	if err != nil {
+		t.Fatalf("NewFileRepository failed: %v", err)
+	}
+	source := SiteManualSource{
+		ID:          "manual_source_restore",
+		ProjectID:   "default",
+		Site:        "ops.example.com",
+		Module:      "backup",
+		Title:       "Backup restore manual",
+		SourceType:  SiteManualSourceMarkdown,
+		ContentHash: "hash_restore",
+		RawContent:  "Use the Backup page to restore the latest full backup.",
+		Status:      StatusActive,
+	}
+	page := SiteManualWikiPage{
+		ID:         "manual_page_restore",
+		ProjectID:  "default",
+		Site:       "ops.example.com",
+		Module:     "backup",
+		PageKey:    "backup_restore",
+		Title:      "Backup restore",
+		Summary:    "Backup restore happens from full backup records.",
+		SourceRefs: []MemorySourceRef{{Type: "site_manual_source", ID: source.ID}},
+		Status:     StatusActive,
+	}
+	chunk := SiteManualWikiChunk{
+		ID:         "manual_chunk_restore",
+		WikiPageID: page.ID,
+		ProjectID:  "default",
+		Site:       "ops.example.com",
+		Module:     "backup",
+		ChunkType:  SiteManualChunkProcedure,
+		Text:       "Open Full Backup and click Restore on the latest backup record.",
+		PageGuards: HardRules{TextAny: []string{"Full Backup", "Restore"}},
+		TargetTerms: []string{
+			"Full Backup",
+			"Restore",
+		},
+		SourceRefs: []MemorySourceRef{{Type: "site_manual_source", ID: source.ID}},
+		Status:     StatusActive,
+	}
+
+	if err := repo.SaveSiteManualSource(ctx, source); err != nil {
+		t.Fatalf("SaveSiteManualSource failed: %v", err)
+	}
+	if err := repo.SaveSiteManualWiki(ctx, []SiteManualWikiPage{page}, []SiteManualWikiChunk{chunk}); err != nil {
+		t.Fatalf("SaveSiteManualWiki failed: %v", err)
+	}
+
+	restarted, err := NewFileRepository(dir)
+	if err != nil {
+		t.Fatalf("restart NewFileRepository failed: %v", err)
+	}
+	found, err := restarted.FindSiteManualSourceByHash(ctx, SiteManualSourceHashQuery{
+		ProjectID:   "default",
+		Site:        "ops.example.com",
+		Module:      "backup",
+		ContentHash: "hash_restore",
+	})
+	if err != nil {
+		t.Fatalf("FindSiteManualSourceByHash failed: %v", err)
+	}
+	if found.ID != source.ID {
+		t.Fatalf("unexpected source: %#v", found)
+	}
+	wiki, err := restarted.GetSiteManualWikiForSource(ctx, source.ID)
+	if err != nil {
+		t.Fatalf("GetSiteManualWikiForSource failed: %v", err)
+	}
+	if len(wiki.Pages) != 1 || len(wiki.Chunks) != 1 {
+		t.Fatalf("unexpected wiki: %#v", wiki)
+	}
+}
+
+func TestFileRepositorySearchesSiteManualWikiWithinSameSiteOnly(t *testing.T) {
 	ctx := context.Background()
 	repo, err := NewFileRepository(t.TempDir())
 	if err != nil {
 		t.Fatalf("NewFileRepository failed: %v", err)
 	}
-	document := KnowledgeDocument{
-		ID:        "doc_service",
-		ProjectID: "default",
-		Title:     "服务管理手册",
-		Source:    "manual",
-		Content:   "服务管理页可通过服务名称搜索框定位服务，状态列表示当前运行状态。",
-		Tags:      []string{"service", "status"},
+	chunks := []SiteManualWikiChunk{
+		{
+			ID:         "manual_chunk_same_site",
+			WikiPageID: "manual_page_restore",
+			ProjectID:  "default",
+			Site:       "ops.example.com",
+			Module:     "backup",
+			ChunkType:  SiteManualChunkProcedure,
+			Text:       "Use the restore button from the full backup list.",
+			TargetTerms: []string{
+				"restore",
+				"backup",
+			},
+			Status: StatusActive,
+		},
+		{
+			ID:          "manual_chunk_other_site",
+			WikiPageID:  "manual_page_restore_other",
+			ProjectID:   "default",
+			Site:        "other.example.com",
+			ChunkType:   SiteManualChunkProcedure,
+			Text:        "Use the restore button from another system.",
+			TargetTerms: []string{"restore"},
+			Status:      StatusActive,
+		},
 	}
-	chunk := KnowledgeChunk{
-		ID:         "chunk_service",
-		DocumentID: document.ID,
-		ProjectID:  "default",
-		Title:      document.Title,
-		Source:     document.Source,
-		ChunkText:  document.Content,
-		Tags:       document.Tags,
-	}
-	if err := repo.SaveKnowledgeDocument(ctx, document); err != nil {
-		t.Fatalf("SaveKnowledgeDocument failed: %v", err)
-	}
-	if err := repo.SaveKnowledgeChunks(ctx, []KnowledgeChunk{chunk}); err != nil {
-		t.Fatalf("SaveKnowledgeChunks failed: %v", err)
+	if err := repo.SaveSiteManualWiki(ctx, nil, chunks); err != nil {
+		t.Fatalf("SaveSiteManualWiki failed: %v", err)
 	}
 
-	hits, err := repo.SearchKnowledgeChunks(ctx, KnowledgeSearchQuery{
-		ProjectID: "default",
-		Task:      "查看服务状态",
-		Title:     "服务管理",
-		Limit:     3,
+	hits, err := repo.SearchSiteManualWikiChunks(ctx, SiteManualWikiSearchQuery{
+		ProjectID:         "default",
+		Site:              "ops.example.com",
+		Module:            "backup",
+		Task:              "restore backup",
+		Title:             "Full backup",
+		VisibleTextSample: "Full backup restore button",
+		Limit:             3,
 	})
 	if err != nil {
-		t.Fatalf("SearchKnowledgeChunks failed: %v", err)
+		t.Fatalf("SearchSiteManualWikiChunks failed: %v", err)
 	}
-	if len(hits) != 1 || hits[0].ID != chunk.ID || hits[0].Score <= 0 {
-		t.Fatalf("unexpected knowledge hits: %#v", hits)
+	if len(hits) != 1 || hits[0].Chunk.ID != "manual_chunk_same_site" {
+		t.Fatalf("unexpected same-site hits: %#v", hits)
+	}
+
+	if err := repo.UpdateSiteManualSourceStatus(ctx, "missing_source", StatusDisabled); err == nil {
+		t.Fatal("expected missing source status update to fail")
 	}
 }
 
-func TestKnowledgeChunkScopeMatchesLocalhostDynamicPortAndFragment(t *testing.T) {
-	chunk := KnowledgeChunk{
-		ID:        "chunk_service",
-		ProjectID: "default",
-		Title:     "服务健康巡检手册",
-		ChunkText: "从 WebOps 控制台进入服务管理，输入服务名称并点击查询服务。",
-		Metadata: map[string]any{
-			"url": "http://127.0.0.1/console#services",
-		},
+func TestFileRepositorySearchSiteManualWikiRejectsPrimaryActionMismatch(t *testing.T) {
+	ctx := context.Background()
+	repo, err := NewFileRepository(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewFileRepository failed: %v", err)
+	}
+	if err := repo.SaveSiteManualWiki(ctx, nil, []SiteManualWikiChunk{{
+		ID:          "manual_chunk_restart",
+		WikiPageID:  "manual_page_restart",
+		ProjectID:   "default",
+		Site:        "k8s.example.com",
+		Module:      "workloads",
+		ChunkType:   SiteManualChunkProcedure,
+		Text:        "Click Restart Deployment, then confirm restart.",
+		TargetTerms: []string{"restart", "deployment", "confirm"},
+		Status:      StatusActive,
+	}}); err != nil {
+		t.Fatalf("SaveSiteManualWiki failed: %v", err)
 	}
 
-	if !knowledgeChunkScopeMatches(chunk, "http://127.0.0.1:55272/console") {
-		t.Fatal("expected localhost document scope to match dynamic-port console URL")
+	hits, err := repo.SearchSiteManualWikiChunks(ctx, SiteManualWikiSearchQuery{
+		ProjectID:         "default",
+		Site:              "k8s.example.com",
+		Module:            "workloads",
+		Task:              "delete deployment and remove pods",
+		Title:             "Deployment Operations",
+		VisibleTextSample: "Restart Deployment Confirm Restart",
+		Limit:             3,
+	})
+	if err != nil {
+		t.Fatalf("SearchSiteManualWikiChunks failed: %v", err)
 	}
-	if knowledgeChunkScopeMatches(chunk, "http://127.0.0.1:55272/settings") {
-		t.Fatal("document scope should not match unrelated local path")
+	if len(hits) != 0 {
+		t.Fatalf("expected action mismatch to filter restart manual, got %#v", hits)
+	}
+}
+
+func TestFileRepositorySearchSiteManualWikiUsesWholeTermTargetEvidence(t *testing.T) {
+	ctx := context.Background()
+	repo, err := NewFileRepository(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewFileRepository failed: %v", err)
+	}
+	if err := repo.SaveSiteManualWiki(ctx, nil, []SiteManualWikiChunk{{
+		ID:          "manual_chunk_workloads",
+		WikiPageID:  "manual_page_workloads",
+		ProjectID:   "default",
+		Site:        "k8s.example.com",
+		Module:      "workloads",
+		ChunkType:   SiteManualChunkProcedure,
+		Text:        "Open Workloads and search the deployment name.",
+		TargetTerms: []string{"workloads", "deployment", "name"},
+		Status:      StatusActive,
+	}}); err != nil {
+		t.Fatalf("SaveSiteManualWiki failed: %v", err)
+	}
+
+	hits, err := repo.SearchSiteManualWikiChunks(ctx, SiteManualWikiSearchQuery{
+		ProjectID:         "default",
+		Site:              "k8s.example.com",
+		Module:            "workloads",
+		Task:              "restart deployment",
+		URL:               "https://k8s.example.com/namespaces/prod/settings",
+		Title:             "Namespace Settings",
+		VisibleTextSample: "Namespace Settings Quota Save",
+		Limit:             3,
+	})
+	if err != nil {
+		t.Fatalf("SearchSiteManualWikiChunks failed: %v", err)
+	}
+	if len(hits) != 0 {
+		t.Fatalf("expected namespace substring not to match deployment name evidence, got %#v", hits)
 	}
 }
 
@@ -414,13 +561,6 @@ func TestFileRepositoryPersistsMemoryV2Records(t *testing.T) {
 		t.Fatalf("NewFileRepository failed: %v", err)
 	}
 
-	profile := BusinessSystemProfile{
-		ProjectID: "default",
-		Site:      "ops.example.com",
-		Summary:   "Service operations system.",
-		Modules:   []BusinessModule{{Name: "Service Management", Purpose: "Query service status.", EntryPageStateID: "page_service_list"}},
-		Terms:     map[string]string{"service": "Managed runtime component."},
-	}
 	observation := PageObservationEvent{
 		ID:                "obs_service_list",
 		ProjectID:         "default",
@@ -460,13 +600,12 @@ func TestFileRepositoryPersistsMemoryV2Records(t *testing.T) {
 		AvoidHint:      "Wait for the service list search controls before filling.",
 	}
 	contextEvent := MemoryContextEvent{
-		ID:                        "ctx_service_status",
-		ProjectID:                 "default",
-		Task:                      "Check kme-prod-001 status",
-		CurrentURL:                "https://ops.example.com/services",
-		CurrentPageState:          "page_service_list",
-		SelectedExperienceIDs:     []string{experience.ID},
-		SelectedKnowledgeChunkIDs: []string{"chunk_service"},
+		ID:                    "ctx_service_status",
+		ProjectID:             "default",
+		Task:                  "Check kme-prod-001 status",
+		CurrentURL:            "https://ops.example.com/services",
+		CurrentPageState:      "page_service_list",
+		SelectedExperienceIDs: []string{experience.ID},
 		EvidenceRefs: []MemoryEvidenceRef{
 			{
 				ID:           experience.ID,
@@ -490,9 +629,6 @@ func TestFileRepositoryPersistsMemoryV2Records(t *testing.T) {
 		Summary:    "Review service status experience.",
 	}
 
-	if err := repo.SaveBusinessSystemProfile(ctx, profile); err != nil {
-		t.Fatalf("SaveBusinessSystemProfile failed: %v", err)
-	}
 	if err := repo.SavePageObservationEvent(ctx, observation); err != nil {
 		t.Fatalf("SavePageObservationEvent failed: %v", err)
 	}
@@ -512,16 +648,6 @@ func TestFileRepositoryPersistsMemoryV2Records(t *testing.T) {
 	restarted, err := NewFileRepository(dir)
 	if err != nil {
 		t.Fatalf("restart NewFileRepository failed: %v", err)
-	}
-	gotProfile, err := restarted.GetBusinessSystemProfile(ctx, BusinessSystemProfileQuery{
-		ProjectID:  "default",
-		SourceType: MemorySourceProduction,
-	})
-	if err != nil {
-		t.Fatalf("GetBusinessSystemProfile failed: %v", err)
-	}
-	if gotProfile.Modules[0].EntryPageStateID != "page_service_list" {
-		t.Fatalf("unexpected profile: %#v", gotProfile)
 	}
 	events, err := restarted.ListPageObservationEvents(ctx, PageObservationEventListQuery{ProjectID: "default", Site: "ops.example.com"})
 	if err != nil {

@@ -18,6 +18,16 @@ describe('PageObservationReporter', () => {
 				title: '服务管理',
 				visibleText: ['服务列表', '搜索'],
 				controls: [{ role: 'button', name: '搜索' }],
+				breadcrumbs: ['首页', '服务管理'],
+				activeTabs: ['运行状态'],
+				tables: [{ headers: ['服务名称', '状态', '操作'] }],
+				activeSurfaces: [
+					{
+						surfaceType: 'drawer',
+						title: '筛选',
+						controls: [{ role: 'button', name: '应用' }],
+					},
+				],
 			},
 			allowPageSummary: true,
 		})
@@ -29,6 +39,16 @@ describe('PageObservationReporter', () => {
 			title: '服务管理',
 			visibleText: ['服务列表', '搜索'],
 			controls: [{ role: 'button', name: '搜索' }],
+			breadcrumbs: ['首页', '服务管理'],
+			activeTabs: ['运行状态'],
+			tables: [{ headers: ['服务名称', '状态', '操作'] }],
+			activeSurfaces: [
+				{
+					surfaceType: 'drawer',
+					title: '筛选',
+					controls: [{ role: 'button', name: '应用' }],
+				},
+			],
 		})
 	})
 

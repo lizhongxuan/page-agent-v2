@@ -1,5 +1,5 @@
-import { History, Plus, Send, Settings, Square } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { BookOpen, History, Plus, Send, Settings, Square } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { ConfigPanel } from '@/components/ConfigPanel'
 import { HistoryDetail } from '@/components/HistoryDetail'
@@ -14,6 +14,8 @@ import {
 	InputGroupTextarea,
 } from '@/components/ui/input-group'
 import { saveSession } from '@/lib/db'
+import { SiteManualClient } from '@/webops/site-manuals/SiteManualClient'
+import type { SiteManualSource } from '@/webops/site-manuals/types'
 
 import {
 	buildSessionContinuationTask,
@@ -32,9 +34,17 @@ interface RunTaskOptions {
 	forceNewSession?: boolean
 }
 
+interface CurrentTabSite {
+	site: string
+	url: string
+}
+
 export default function App() {
 	const [view, setView] = useState<View>({ name: 'chat' })
 	const [inputValue, setInputValue] = useState('')
+	const [currentTabSite, setCurrentTabSite] = useState<CurrentTabSite>({ site: '', url: '' })
+	const [siteManualSources, setSiteManualSources] = useState<SiteManualSource[]>([])
+	const [siteManualStatus, setSiteManualStatus] = useState<'idle' | 'loading' | 'error'>('idle')
 	const historyRef = useRef<HTMLDivElement>(null)
 	const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -52,6 +62,18 @@ export default function App() {
 		stop,
 		configure,
 	} = useAgent()
+
+	const siteManualClient = useMemo(
+		() =>
+			config?.workflowBackend?.baseUrl
+				? new SiteManualClient({
+						baseUrl: config.workflowBackend.baseUrl,
+						bearerToken: config.workflowBackend.apiKey,
+					})
+				: undefined,
+		[config?.workflowBackend?.apiKey, config?.workflowBackend?.baseUrl]
+	)
+	const projectId = config?.workflowBackend?.projectId ?? 'default'
 
 	// Persist session when task finishes
 	const savedSessionKeyRef = useRef('')
@@ -81,6 +103,55 @@ export default function App() {
 			historyRef.current.scrollTop = historyRef.current.scrollHeight
 		}
 	}, [history, activity])
+
+	useEffect(() => {
+		let cancelled = false
+		async function loadCurrentTabSite() {
+			if (typeof chrome === 'undefined' || !chrome.tabs?.query) return
+			const tabs = await chrome.tabs.query({ active: true, currentWindow: true })
+			const url = tabs[0]?.url ?? ''
+			if (cancelled || !isHttpUrl(url)) return
+			setCurrentTabSite({
+				site: new URL(url).hostname,
+				url,
+			})
+		}
+		loadCurrentTabSite().catch((error) => {
+			console.warn('[SidePanel] Failed to detect current tab site:', error)
+		})
+		return () => {
+			cancelled = true
+		}
+	}, [])
+
+	useEffect(() => {
+		if (!siteManualClient?.listSiteManuals || !currentTabSite.site) {
+			setSiteManualSources([])
+			return
+		}
+		let cancelled = false
+		setSiteManualStatus('loading')
+		siteManualClient
+			.listSiteManuals({
+				projectId,
+				site: currentTabSite.site,
+				status: 'active',
+			})
+			.then((response) => {
+				if (cancelled) return
+				setSiteManualSources(response.sources ?? response.items ?? [])
+				setSiteManualStatus('idle')
+			})
+			.catch((error) => {
+				if (cancelled) return
+				console.warn('[SidePanel] Failed to load current site manuals:', error)
+				setSiteManualSources([])
+				setSiteManualStatus('error')
+			})
+		return () => {
+			cancelled = true
+		}
+	}, [currentTabSite.site, projectId, siteManualClient])
 
 	const runTask = useCallback(
 		(task: string, options: RunTaskOptions = {}) => {
@@ -139,6 +210,13 @@ export default function App() {
 		setView({ name: 'chat' })
 		newSession()
 	}, [newSession, status])
+
+	const openSiteManualLibrary = useCallback(() => {
+		const params = new URLSearchParams({ view: 'site-manuals' })
+		if (currentTabSite.site) params.set('site', currentTabSite.site)
+		if (currentTabSite.url) params.set('url', currentTabSite.url)
+		chrome.tabs.create({ url: chrome.runtime.getURL(`/hub.html?${params.toString()}`) })
+	}, [currentTabSite])
 
 	const handleKeyDown = (e: React.KeyboardEvent) => {
 		if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
@@ -217,6 +295,16 @@ export default function App() {
 					<Button
 						variant="ghost"
 						size="icon-sm"
+						onClick={openSiteManualLibrary}
+						className="cursor-pointer"
+						aria-label="Site Manual Library"
+						title="Site Manual Library"
+					>
+						<BookOpen className="size-3.5" />
+					</Button>
+					<Button
+						variant="ghost"
+						size="icon-sm"
 						onClick={() => setView({ name: 'history' })}
 						className="cursor-pointer"
 						aria-label="History"
@@ -239,6 +327,14 @@ export default function App() {
 
 			{/* Content */}
 			<main className="flex-1 overflow-hidden flex flex-col">
+				<CurrentSiteManualStatus
+					site={currentTabSite.site}
+					manualCount={siteManualSources.length}
+					status={siteManualStatus}
+					backendConfigured={!!siteManualClient}
+					onOpen={openSiteManualLibrary}
+				/>
+
 				{/* Current task */}
 				{currentTask && (
 					<div className="border-b px-3 py-2 bg-muted/30">
@@ -345,4 +441,60 @@ export default function App() {
 			</footer>
 		</div>
 	)
+}
+
+function CurrentSiteManualStatus({
+	site,
+	manualCount,
+	status,
+	backendConfigured,
+	onOpen,
+}: {
+	site: string
+	manualCount: number
+	status: 'idle' | 'loading' | 'error'
+	backendConfigured: boolean
+	onOpen: () => void
+}) {
+	const summary = !backendConfigured
+		? 'Memory backend not configured'
+		: !site
+			? 'No web tab detected'
+			: status === 'loading'
+				? 'Checking manuals...'
+				: status === 'error'
+					? 'Manual status unavailable'
+					: `${manualCount} active ${manualCount === 1 ? 'manual' : 'manuals'}`
+
+	return (
+		<section className="border-b bg-muted/20 px-3 py-2">
+			<div className="flex items-center justify-between gap-2">
+				<div className="min-w-0">
+					<div className="text-[10px] text-muted-foreground uppercase tracking-wide">
+						Current Site
+					</div>
+					<div className="truncate text-xs font-medium" title={site || summary}>
+						{site || summary}
+					</div>
+					{site && <div className="text-[11px] text-muted-foreground">{summary}</div>}
+				</div>
+				<Button
+					type="button"
+					variant="outline"
+					size="sm"
+					onClick={onOpen}
+					className="h-7 shrink-0 gap-1 px-2 text-xs"
+					aria-label="Open current site manual library"
+					title="Open current site manual library"
+				>
+					<BookOpen className="size-3" />
+					Open Library
+				</Button>
+			</div>
+		</section>
+	)
+}
+
+function isHttpUrl(value: string): boolean {
+	return value.startsWith('http://') || value.startsWith('https://')
 }

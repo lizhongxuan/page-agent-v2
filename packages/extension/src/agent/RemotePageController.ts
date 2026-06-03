@@ -1,6 +1,7 @@
 import type { BrowserState } from '@page-agent/page-controller'
 
 import type { InteractionEvent, InteractionResponse } from '@/webops/interactions/interactionTypes'
+import type { MemoryPageControl, MemoryPageSurface, MemoryPageTable } from '@/webops/memory/types'
 import type { RecordedActionTarget, RecordedActionType } from '@/webops/recorder/actionEvents'
 import { recordWebOpsAction } from '@/webops/recorder/runtimeSession'
 
@@ -337,10 +338,11 @@ interface DomActionReturn {
 
 export interface WorkflowElementsObservation {
 	visibleText: string[]
-	controls: {
-		role: string
-		name: string
-	}[]
+	controls: MemoryPageControl[]
+	breadcrumbs?: string[]
+	activeTabs?: string[]
+	tables?: MemoryPageTable[]
+	activeSurfaces?: MemoryPageSurface[]
 }
 
 function normalizeWorkflowElementsResponse(response: any): WorkflowElementsObservation {
@@ -358,10 +360,103 @@ function normalizeWorkflowElementsResponse(response: any): WorkflowElementsObser
 						typeof (value as { role?: unknown }).role === 'string' &&
 						typeof (value as { name?: unknown }).name === 'string'
 				)
-				.map((value: { role: string; name: string }) => ({ role: value.role, name: value.name }))
+				.map((value: { role: string; name: string; selected?: boolean; enabled?: boolean }) => ({
+					role: value.role,
+					name: value.name,
+					...(typeof value.selected === 'boolean' ? { selected: value.selected } : {}),
+					...(typeof value.enabled === 'boolean' ? { enabled: value.enabled } : {}),
+				}))
+		: []
+	const breadcrumbs = stringArray(response.breadcrumbs)
+	const activeTabs = stringArray(response.activeTabs)
+	const tables = Array.isArray(response.tables)
+		? response.tables
+				.filter((value: unknown): value is { caption?: string; headers?: string[] } =>
+					Boolean(value && typeof value === 'object')
+				)
+				.map(
+					(value: { caption?: string; headers?: string[] }): MemoryPageTable => ({
+						...(typeof value.caption === 'string' ? { caption: value.caption } : {}),
+						headers: stringArray(value.headers),
+					})
+				)
+				.filter((value: MemoryPageTable) => Boolean(value.headers?.length))
+		: []
+	const activeSurfaces = Array.isArray(response.activeSurfaces)
+		? response.activeSurfaces
+				.filter(
+					(
+						value: unknown
+					): value is {
+						surfaceType?: unknown
+						title?: string
+						text?: string[]
+						controls?: unknown[]
+					} => Boolean(value && typeof value === 'object')
+				)
+				.map(
+					(value: {
+						surfaceType?: unknown
+						title?: string
+						text?: string[]
+						controls?: unknown[]
+					}): MemoryPageSurface => ({
+						...(validSurfaceType(value.surfaceType)
+							? { surfaceType: value.surfaceType }
+							: { surfaceType: 'unknown' }),
+						...(typeof value.title === 'string' ? { title: value.title } : {}),
+						text: stringArray(value.text),
+						controls: Array.isArray(value.controls)
+							? value.controls
+									.filter(
+										(
+											control: unknown
+										): control is {
+											role: string
+											name: string
+											selected?: boolean
+											enabled?: boolean
+										} =>
+											typeof control === 'object' &&
+											control !== null &&
+											typeof (control as { role?: unknown }).role === 'string' &&
+											typeof (control as { name?: unknown }).name === 'string'
+									)
+									.map(
+										(control): MemoryPageControl => ({
+											role: control.role,
+											name: control.name,
+											...(typeof control.selected === 'boolean'
+												? { selected: control.selected }
+												: {}),
+											...(typeof control.enabled === 'boolean' ? { enabled: control.enabled } : {}),
+										})
+									)
+							: [],
+					})
+				)
 		: []
 
-	return { visibleText, controls }
+	return { visibleText, controls, breadcrumbs, activeTabs, tables, activeSurfaces }
+}
+
+function stringArray(value: unknown): string[] {
+	return Array.isArray(value)
+		? value.filter((item): item is string => typeof item === 'string')
+		: []
+}
+
+function validSurfaceType(value: unknown): value is NonNullable<MemoryPageSurface['surfaceType']> {
+	return (
+		value === 'modal' ||
+		value === 'drawer' ||
+		value === 'popover' ||
+		value === 'dropdown' ||
+		value === 'carousel' ||
+		value === 'toast' ||
+		value === 'wizard' ||
+		value === 'unknown'
+	)
 }
 
 /**

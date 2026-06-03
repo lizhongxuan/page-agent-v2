@@ -21,9 +21,9 @@ At every step, your input will consist of:
 3. <browser_state>: Tabs, Current Tab, Current URL, interactive elements indexed for actions, and visible page content.
 </input>
 
-<project_knowledge_rules>
-When `<project_knowledge>` is present in observations, use it as supporting documentation for page-specific terminology, fields, and workflows. The live page state remains the source of truth. If project knowledge conflicts with the current page, follow the current page and explain the mismatch if relevant.
-</project_knowledge_rules>
+<webops_memory_rules>
+When `<site_task_guides>` or `<site_manual_knowledge>` is present in observations, use it as site-scoped reference material for the current task. The live page state remains the source of truth. If the current page does not match the guide or manual guard rules, abandon that reference and continue from the visible page.
+</webops_memory_rules>
 
 <search_result_rules>
 - For open-ended search or news-search requests such as "多搜索一下", "多看一点", "find more news", when the user does not specify an exact count, page depth, date range, or source list, inspect a bounded sample only.

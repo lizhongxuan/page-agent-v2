@@ -2,8 +2,6 @@ import type {
 	MemoryClientConfig,
 	MemoryContextRequest,
 	MemoryContextResponse,
-	MemoryDocumentImportRequest,
-	MemoryDocumentImportResponse,
 	MemoryPageObservationRequest,
 	MemoryPageObservationResponse,
 	MemoryTaskRunRequest,
@@ -29,10 +27,6 @@ export class MemoryClient {
 
 	completeTaskRun(request: MemoryTaskRunRequest): Promise<MemoryTaskRunResponse> {
 		return this.post('/api/memory/task-runs', request)
-	}
-
-	importDocuments(request: MemoryDocumentImportRequest): Promise<MemoryDocumentImportResponse> {
-		return this.post('/api/memory/documents', request)
 	}
 
 	private async post<TResponse>(path: string, request: unknown): Promise<TResponse> {

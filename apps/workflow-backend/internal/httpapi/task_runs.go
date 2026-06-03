@@ -4,20 +4,10 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
-	"net/http"
 	"time"
 
 	"github.com/page-agent/workflow-backend/internal/registry"
 )
-
-func registerTaskRunRoutes(mux *http.ServeMux, repo registry.Repository) {
-	mux.HandleFunc("POST /api/task-runs", func(w http.ResponseWriter, r *http.Request) {
-		writeDeprecatedEndpoint(w, "/api/memory/task-runs")
-	})
-	mux.HandleFunc("GET /api/task-runs/{id}", func(w http.ResponseWriter, r *http.Request) {
-		writeDeprecatedEndpoint(w, "/api/memory/task-runs")
-	})
-}
 
 func validateTaskRunRequest(run registry.TaskRun) error {
 	if run.ProjectID == "" {

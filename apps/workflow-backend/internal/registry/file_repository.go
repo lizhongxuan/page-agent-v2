@@ -7,10 +7,9 @@ import (
 	"encoding/json"
 	"errors"
 	"math"
-	"net"
-	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -19,30 +18,32 @@ import (
 )
 
 type FileRepository struct {
-	mu                 sync.Mutex
-	dir                string
-	candidates         map[string]WorkflowCandidate
-	workflows          map[string]WorkflowRecipe
-	versions           map[string]WorkflowVersion
-	runs               map[string]WorkflowRun
-	taskRuns           map[string]TaskRun
-	pageStates         map[string]PageState
-	pageSurfaces       map[string]PageSurface
-	transitions        map[string]PageTransition
-	knowledgeDocuments map[string]KnowledgeDocument
-	knowledgeChunks    map[string]KnowledgeChunk
-	businessProfiles   map[string]BusinessSystemProfile
-	pageObservations   map[string]PageObservationEvent
-	experiences        map[string]ExperienceMemory
-	failures           map[string]FailureMemory
-	memoryContexts     map[string]MemoryContextEvent
-	attributionEvents  map[string]MemoryAttributionEvent
-	evidenceStats      map[string]MemoryEvidenceStats
-	memoryReviews      map[string]MemoryReview
-	stats              map[string]SelectorStats
-	interrupts         map[string]InterruptHandler
-	repairs            map[string]RepairPatch
-	outbox             map[string]OutboxEvent
+	mu                sync.Mutex
+	dir               string
+	candidates        map[string]WorkflowCandidate
+	workflows         map[string]WorkflowRecipe
+	versions          map[string]WorkflowVersion
+	runs              map[string]WorkflowRun
+	taskRuns          map[string]TaskRun
+	pageStates        map[string]PageState
+	pageSurfaces      map[string]PageSurface
+	transitions       map[string]PageTransition
+	siteTaskGuides    map[string]SiteTaskGuide
+	siteGuideFeedback map[string]SiteTaskGuideFeedback
+	siteManualSources map[string]SiteManualSource
+	siteManualPages   map[string]SiteManualWikiPage
+	siteManualChunks  map[string]SiteManualWikiChunk
+	pageObservations  map[string]PageObservationEvent
+	experiences       map[string]ExperienceMemory
+	failures          map[string]FailureMemory
+	memoryContexts    map[string]MemoryContextEvent
+	attributionEvents map[string]MemoryAttributionEvent
+	evidenceStats     map[string]MemoryEvidenceStats
+	memoryReviews     map[string]MemoryReview
+	stats             map[string]SelectorStats
+	interrupts        map[string]InterruptHandler
+	repairs           map[string]RepairPatch
+	outbox            map[string]OutboxEvent
 }
 
 func NewFileRepository(dir string) (*FileRepository, error) {
@@ -50,29 +51,31 @@ func NewFileRepository(dir string) (*FileRepository, error) {
 		return nil, err
 	}
 	repo := &FileRepository{
-		dir:                dir,
-		candidates:         map[string]WorkflowCandidate{},
-		workflows:          map[string]WorkflowRecipe{},
-		versions:           map[string]WorkflowVersion{},
-		runs:               map[string]WorkflowRun{},
-		taskRuns:           map[string]TaskRun{},
-		pageStates:         map[string]PageState{},
-		pageSurfaces:       map[string]PageSurface{},
-		transitions:        map[string]PageTransition{},
-		knowledgeDocuments: map[string]KnowledgeDocument{},
-		knowledgeChunks:    map[string]KnowledgeChunk{},
-		businessProfiles:   map[string]BusinessSystemProfile{},
-		pageObservations:   map[string]PageObservationEvent{},
-		experiences:        map[string]ExperienceMemory{},
-		failures:           map[string]FailureMemory{},
-		memoryContexts:     map[string]MemoryContextEvent{},
-		attributionEvents:  map[string]MemoryAttributionEvent{},
-		evidenceStats:      map[string]MemoryEvidenceStats{},
-		memoryReviews:      map[string]MemoryReview{},
-		stats:              map[string]SelectorStats{},
-		interrupts:         map[string]InterruptHandler{},
-		repairs:            map[string]RepairPatch{},
-		outbox:             map[string]OutboxEvent{},
+		dir:               dir,
+		candidates:        map[string]WorkflowCandidate{},
+		workflows:         map[string]WorkflowRecipe{},
+		versions:          map[string]WorkflowVersion{},
+		runs:              map[string]WorkflowRun{},
+		taskRuns:          map[string]TaskRun{},
+		pageStates:        map[string]PageState{},
+		pageSurfaces:      map[string]PageSurface{},
+		transitions:       map[string]PageTransition{},
+		siteTaskGuides:    map[string]SiteTaskGuide{},
+		siteGuideFeedback: map[string]SiteTaskGuideFeedback{},
+		siteManualSources: map[string]SiteManualSource{},
+		siteManualPages:   map[string]SiteManualWikiPage{},
+		siteManualChunks:  map[string]SiteManualWikiChunk{},
+		pageObservations:  map[string]PageObservationEvent{},
+		experiences:       map[string]ExperienceMemory{},
+		failures:          map[string]FailureMemory{},
+		memoryContexts:    map[string]MemoryContextEvent{},
+		attributionEvents: map[string]MemoryAttributionEvent{},
+		evidenceStats:     map[string]MemoryEvidenceStats{},
+		memoryReviews:     map[string]MemoryReview{},
+		stats:             map[string]SelectorStats{},
+		interrupts:        map[string]InterruptHandler{},
+		repairs:           map[string]RepairPatch{},
+		outbox:            map[string]OutboxEvent{},
 	}
 	if err := repo.load(); err != nil {
 		return nil, err
@@ -407,141 +410,347 @@ func (repo *FileRepository) ListPageTransitions(_ context.Context, query PageTra
 	return result, nil
 }
 
-func (repo *FileRepository) SaveKnowledgeDocument(_ context.Context, document KnowledgeDocument) error {
-	repo.mu.Lock()
-	defer repo.mu.Unlock()
-	if document.ID == "" {
-		document.ID = newID("doc")
-	}
-	if document.CreatedAt.IsZero() {
-		document.CreatedAt = time.Now().UTC()
-	}
-	repo.knowledgeDocuments[document.ID] = document
-	return repo.persistLocked()
-}
-
-func (repo *FileRepository) SaveKnowledgeChunks(_ context.Context, chunks []KnowledgeChunk) error {
+func (repo *FileRepository) SaveSiteTaskGuide(_ context.Context, guide SiteTaskGuide) error {
 	repo.mu.Lock()
 	defer repo.mu.Unlock()
 	now := time.Now().UTC()
-	documentIDs := map[string]bool{}
-	chunkIDs := map[string]bool{}
-	for index := range chunks {
-		if chunks[index].DocumentID != "" {
-			documentIDs[chunks[index].DocumentID] = true
-		}
-		if chunks[index].ID == "" {
-			chunks[index].ID = newID("chunk")
-		}
-		chunkIDs[chunks[index].ID] = true
+	if guide.ID == "" {
+		guide.ID = newID("guide")
 	}
-	for id, existing := range repo.knowledgeChunks {
-		if documentIDs[existing.DocumentID] && !chunkIDs[id] {
-			delete(repo.knowledgeChunks, id)
+	if guide.CreatedAt.IsZero() {
+		guide.CreatedAt = now
+	}
+	if guide.UpdatedAt.IsZero() {
+		guide.UpdatedAt = now
+	}
+	if guide.Status == "" {
+		guide.Status = StatusActive
+	}
+	if err := ValidateSiteTaskGuide(guide); err != nil {
+		return err
+	}
+	repo.siteTaskGuides[guide.ID] = guide
+	return repo.persistLocked()
+}
+
+func (repo *FileRepository) GetSiteTaskGuide(_ context.Context, id string) (SiteTaskGuide, error) {
+	repo.mu.Lock()
+	defer repo.mu.Unlock()
+	guide, ok := repo.siteTaskGuides[id]
+	if !ok {
+		return SiteTaskGuide{}, errors.New("site task guide not found")
+	}
+	return guide, nil
+}
+
+func (repo *FileRepository) ListSiteTaskGuides(_ context.Context, query SiteTaskGuideListQuery) ([]SiteTaskGuide, error) {
+	repo.mu.Lock()
+	defer repo.mu.Unlock()
+	result := make([]SiteTaskGuide, 0)
+	for _, guide := range repo.siteTaskGuides {
+		if query.ProjectID != "" && guide.ProjectID != query.ProjectID {
+			continue
+		}
+		if query.Site != "" && guide.Site != query.Site {
+			continue
+		}
+		if query.Module != "" && guide.Module != query.Module {
+			continue
+		}
+		if query.Status != "" && guide.Status != query.Status {
+			continue
+		}
+		result = append(result, guide)
+	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].UpdatedAt.Equal(result[j].UpdatedAt) {
+			return result[i].ID < result[j].ID
+		}
+		return result[i].UpdatedAt.After(result[j].UpdatedAt)
+	})
+	return result, nil
+}
+
+func (repo *FileRepository) SearchSiteTaskGuides(ctx context.Context, query SiteTaskGuideSearchQuery) ([]SiteTaskGuide, error) {
+	guides, err := repo.ListSiteTaskGuides(ctx, SiteTaskGuideListQuery{
+		ProjectID: query.ProjectID,
+		Site:      query.Site,
+		Status:    StatusActive,
+	})
+	if err != nil {
+		return nil, err
+	}
+	queryText := strings.ToLower(query.Task)
+	result := make([]SiteTaskGuide, 0, len(guides))
+	for index := range guides {
+		if query.Module != "" && guides[index].Module != "" && !strings.EqualFold(guides[index].Module, query.Module) {
+			continue
+		}
+		guides[index].Confidence += scoreText(strings.Join([]string{
+			guides[index].TaskIntentKey,
+			guides[index].TaskIntentSummary,
+			guides[index].Summary,
+		}, "\n"), queryText)
+		result = append(result, guides[index])
+	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].Confidence == result[j].Confidence {
+			return result[i].ID < result[j].ID
+		}
+		return result[i].Confidence > result[j].Confidence
+	})
+	if query.Limit > 0 && len(result) > query.Limit {
+		result = result[:query.Limit]
+	}
+	return result, nil
+}
+
+func (repo *FileRepository) UpdateSiteTaskGuideStatus(_ context.Context, id string, status Status) error {
+	repo.mu.Lock()
+	defer repo.mu.Unlock()
+	guide, ok := repo.siteTaskGuides[id]
+	if !ok {
+		return errors.New("site task guide not found")
+	}
+	guide.Status = status
+	guide.UpdatedAt = time.Now().UTC()
+	repo.siteTaskGuides[id] = guide
+	return repo.persistLocked()
+}
+
+func (repo *FileRepository) SaveSiteTaskGuideFeedback(_ context.Context, feedback SiteTaskGuideFeedback) error {
+	repo.mu.Lock()
+	defer repo.mu.Unlock()
+	if feedback.ID == "" {
+		feedback.ID = newID("guide_feedback")
+	}
+	if feedback.CreatedAt.IsZero() {
+		feedback.CreatedAt = time.Now().UTC()
+	}
+	if err := ValidateSummaryLength(feedback.Reason); err != nil {
+		return err
+	}
+	repo.siteGuideFeedback[feedback.ID] = feedback
+	return repo.persistLocked()
+}
+
+func (repo *FileRepository) SaveSiteManualSource(_ context.Context, source SiteManualSource) error {
+	repo.mu.Lock()
+	defer repo.mu.Unlock()
+	if source.ID == "" {
+		source.ID = newID("manual_source")
+	}
+	if source.CreatedAt.IsZero() {
+		source.CreatedAt = time.Now().UTC()
+	}
+	if source.Status == "" {
+		source.Status = StatusActive
+	}
+	if err := ValidateSiteManualSource(source); err != nil {
+		return err
+	}
+	repo.siteManualSources[source.ID] = source
+	return repo.persistLocked()
+}
+
+func (repo *FileRepository) FindSiteManualSourceByHash(_ context.Context, query SiteManualSourceHashQuery) (SiteManualSource, error) {
+	repo.mu.Lock()
+	defer repo.mu.Unlock()
+	for _, source := range repo.siteManualSources {
+		if source.ProjectID == query.ProjectID &&
+			source.Site == query.Site &&
+			source.Module == query.Module &&
+			source.ContentHash == query.ContentHash &&
+			source.Status != StatusDeleted {
+			return source, nil
 		}
 	}
-	for _, chunk := range chunks {
-		if chunk.ID == "" {
-			chunk.ID = newID("chunk")
+	return SiteManualSource{}, errors.New("site manual source not found")
+}
+
+func (repo *FileRepository) GetSiteManualSource(_ context.Context, id string) (SiteManualSource, error) {
+	repo.mu.Lock()
+	defer repo.mu.Unlock()
+	source, ok := repo.siteManualSources[id]
+	if !ok || source.Status == StatusDeleted {
+		return SiteManualSource{}, errors.New("site manual source not found")
+	}
+	return source, nil
+}
+
+func (repo *FileRepository) ListSiteManualSources(_ context.Context, query SiteManualSourceListQuery) ([]SiteManualSource, error) {
+	repo.mu.Lock()
+	defer repo.mu.Unlock()
+	result := make([]SiteManualSource, 0)
+	for _, source := range repo.siteManualSources {
+		if source.Status == StatusDeleted {
+			continue
 		}
-		if chunk.UpdatedAt.IsZero() {
-			chunk.UpdatedAt = now
+		if !query.IncludeHidden && (source.Status == StatusDisabled || source.Status == StatusReplaced) {
+			continue
 		}
-		repo.knowledgeChunks[chunk.ID] = chunk
+		if query.ProjectID != "" && source.ProjectID != query.ProjectID {
+			continue
+		}
+		if query.Site != "" && source.Site != query.Site {
+			continue
+		}
+		if query.Module != "" && source.Module != query.Module {
+			continue
+		}
+		result = append(result, source)
+	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].CreatedAt.Equal(result[j].CreatedAt) {
+			return result[i].ID < result[j].ID
+		}
+		return result[i].CreatedAt.After(result[j].CreatedAt)
+	})
+	return result, nil
+}
+
+func (repo *FileRepository) UpdateSiteManualSourceStatus(_ context.Context, id string, status Status) error {
+	repo.mu.Lock()
+	defer repo.mu.Unlock()
+	source, ok := repo.siteManualSources[id]
+	if !ok || source.Status == StatusDeleted {
+		return errors.New("site manual source not found")
+	}
+	source.Status = status
+	repo.siteManualSources[id] = source
+	for chunkID, chunk := range repo.siteManualChunks {
+		if sourceRefsContain(chunk.SourceRefs, id) {
+			chunk.Status = status
+			repo.siteManualChunks[chunkID] = chunk
+		}
+	}
+	for pageID, page := range repo.siteManualPages {
+		if sourceRefsContain(page.SourceRefs, id) {
+			page.Status = status
+			page.UpdatedAt = time.Now().UTC()
+			repo.siteManualPages[pageID] = page
+		}
 	}
 	return repo.persistLocked()
 }
 
-func (repo *FileRepository) SearchKnowledgeChunks(_ context.Context, query KnowledgeSearchQuery) ([]KnowledgeChunk, error) {
+func (repo *FileRepository) DeleteSiteManualSource(ctx context.Context, id string) error {
+	return repo.UpdateSiteManualSourceStatus(ctx, id, StatusDeleted)
+}
+
+func (repo *FileRepository) SaveSiteManualWiki(_ context.Context, pages []SiteManualWikiPage, chunks []SiteManualWikiChunk) error {
+	repo.mu.Lock()
+	defer repo.mu.Unlock()
+	now := time.Now().UTC()
+	for _, page := range pages {
+		if page.ID == "" {
+			page.ID = newID("manual_page")
+		}
+		if page.Status == "" {
+			page.Status = StatusActive
+		}
+		if page.UpdatedAt.IsZero() {
+			page.UpdatedAt = now
+		}
+		if err := ValidateSiteManualWikiPage(page); err != nil {
+			return err
+		}
+		repo.siteManualPages[page.ID] = page
+	}
+	for _, chunk := range chunks {
+		if chunk.ID == "" {
+			chunk.ID = newID("manual_chunk")
+		}
+		if chunk.Status == "" {
+			chunk.Status = StatusActive
+		}
+		if err := ValidateSiteManualWikiChunk(chunk); err != nil {
+			return err
+		}
+		repo.siteManualChunks[chunk.ID] = chunk
+	}
+	return repo.persistLocked()
+}
+
+func (repo *FileRepository) GetSiteManualWikiForSource(_ context.Context, sourceID string) (SiteManualWiki, error) {
+	repo.mu.Lock()
+	defer repo.mu.Unlock()
+	wiki := SiteManualWiki{}
+	for _, page := range repo.siteManualPages {
+		if sourceRefsContain(page.SourceRefs, sourceID) && page.Status != StatusDeleted {
+			wiki.Pages = append(wiki.Pages, page)
+		}
+	}
+	for _, chunk := range repo.siteManualChunks {
+		if sourceRefsContain(chunk.SourceRefs, sourceID) && chunk.Status != StatusDeleted {
+			wiki.Chunks = append(wiki.Chunks, chunk)
+		}
+	}
+	sort.Slice(wiki.Pages, func(i, j int) bool { return wiki.Pages[i].ID < wiki.Pages[j].ID })
+	sort.Slice(wiki.Chunks, func(i, j int) bool { return wiki.Chunks[i].ID < wiki.Chunks[j].ID })
+	return wiki, nil
+}
+
+func (repo *FileRepository) SearchSiteManualWikiChunks(_ context.Context, query SiteManualWikiSearchQuery) ([]SiteManualKnowledgeMatch, error) {
 	repo.mu.Lock()
 	defer repo.mu.Unlock()
 	limit := query.Limit
 	if limit <= 0 {
 		limit = 3
 	}
-	queryText := strings.ToLower(strings.Join([]string{
-		query.Task,
-		query.Title,
-		query.URL,
-		query.VisibleText,
-		strings.Join(query.Hints, " "),
-	}, " "))
-	result := make([]KnowledgeChunk, 0)
-	for _, chunk := range repo.knowledgeChunks {
-		if query.ProjectID != "" && chunk.ProjectID != query.ProjectID {
+	queryText := strings.ToLower(query.Task)
+	matches := []SiteManualKnowledgeMatch{}
+	for _, chunk := range repo.siteManualChunks {
+		reason := siteManualChunkFilterReason(chunk, query)
+		if reason != "" {
+			if query.IncludeFiltered {
+				matches = append(matches, SiteManualKnowledgeMatch{Chunk: chunk, Reason: reason, Score: -1})
+			}
 			continue
 		}
-		if !knowledgeChunkHardGateMatches(chunk, query) {
-			continue
-		}
-		score := scoreKnowledgeChunk(chunk, queryText)
+		score := scoreText(strings.Join([]string{
+			chunk.Text,
+			strings.Join(chunk.TargetTerms, " "),
+		}, "\n"), queryText)
 		if len(query.Embedding) > 0 && len(chunk.Embedding) > 0 {
 			if vectorScore := cosineSimilarity(query.Embedding, chunk.Embedding); vectorScore > score {
 				score = vectorScore
 			}
 		}
-		if score <= 0 {
+		if query.Task != "" && score <= 0 {
+			if query.IncludeFiltered {
+				matches = append(matches, SiteManualKnowledgeMatch{Chunk: chunk, Reason: "task term mismatch", Score: -1})
+			}
 			continue
 		}
 		chunk.Score = score
-		result = append(result, chunk)
+		matches = append(matches, SiteManualKnowledgeMatch{
+			Chunk:  chunk,
+			Reason: "matched project, site, module, status, page guard, and task terms",
+			Score:  score,
+		})
 	}
-	sort.Slice(result, func(i, j int) bool {
-		if result[i].Score == result[j].Score {
-			return result[i].ID < result[j].ID
+	sort.SliceStable(matches, func(i, j int) bool {
+		if matches[i].Score == matches[j].Score {
+			return matches[i].Chunk.ID < matches[j].Chunk.ID
 		}
-		return result[i].Score > result[j].Score
+		return matches[i].Score > matches[j].Score
 	})
-	if len(result) > limit {
-		result = result[:limit]
-	}
-	return result, nil
-}
-
-func (repo *FileRepository) SaveBusinessSystemProfile(_ context.Context, profile BusinessSystemProfile) error {
-	repo.mu.Lock()
-	defer repo.mu.Unlock()
-	if profile.UpdatedAt.IsZero() {
-		profile.UpdatedAt = time.Now().UTC()
-	}
-	if profile.Status == "" {
-		profile.Status = StatusActive
-	}
-	if profile.SourceType == "" {
-		profile.SourceType = MemorySourceProduction
-	}
-	if err := ValidateMemoryRecord(profile); err != nil {
-		return err
-	}
-	repo.businessProfiles[businessProfileKey(profile.ProjectID, profile.Site, profile.Module)] = profile
-	return repo.persistLocked()
-}
-
-func (repo *FileRepository) GetBusinessSystemProfile(_ context.Context, query BusinessSystemProfileQuery) (BusinessSystemProfile, error) {
-	repo.mu.Lock()
-	defer repo.mu.Unlock()
-	candidates := []BusinessSystemProfile{}
-	for _, profile := range repo.businessProfiles {
-		if query.ProjectID != "" && profile.ProjectID != query.ProjectID {
+	active := matches[:0]
+	filtered := []SiteManualKnowledgeMatch{}
+	for _, match := range matches {
+		if match.Score < 0 {
+			filtered = append(filtered, match)
 			continue
 		}
-		if !profileSourceAllowed(profile.SourceType, query.SourceType) {
-			continue
-		}
-		if query.Site != "" && profile.Site != "" && profile.Site != query.Site {
-			continue
-		}
-		candidates = append(candidates, profile)
-	}
-	sort.Slice(candidates, func(i, j int) bool {
-		return businessProfileRank(candidates[i], query) > businessProfileRank(candidates[j], query)
-	})
-	for _, profile := range candidates {
-		if businessProfileRank(profile, query) > 0 {
-			return profile, nil
+		if len(active) < limit {
+			active = append(active, match)
 		}
 	}
-	return BusinessSystemProfile{}, errors.New("business system profile not found")
+	if query.IncludeFiltered {
+		active = append(active, filtered...)
+	}
+	return active, nil
 }
 
 func (repo *FileRepository) SavePageObservationEvent(_ context.Context, event PageObservationEvent) error {
@@ -1273,13 +1482,19 @@ func (repo *FileRepository) load() error {
 	if err := readJSON(repo.path("page_transitions.json"), &repo.transitions); err != nil {
 		return err
 	}
-	if err := readJSON(repo.path("knowledge_documents.json"), &repo.knowledgeDocuments); err != nil {
+	if err := readJSON(repo.path("site_task_guides.json"), &repo.siteTaskGuides); err != nil {
 		return err
 	}
-	if err := readJSON(repo.path("knowledge_chunks.json"), &repo.knowledgeChunks); err != nil {
+	if err := readJSON(repo.path("site_task_guide_feedback.json"), &repo.siteGuideFeedback); err != nil {
 		return err
 	}
-	if err := readJSON(repo.path("business_system_profiles.json"), &repo.businessProfiles); err != nil {
+	if err := readJSON(repo.path("site_manual_sources.json"), &repo.siteManualSources); err != nil {
+		return err
+	}
+	if err := readJSON(repo.path("site_manual_wiki_pages.json"), &repo.siteManualPages); err != nil {
+		return err
+	}
+	if err := readJSON(repo.path("site_manual_wiki_chunks.json"), &repo.siteManualChunks); err != nil {
 		return err
 	}
 	if err := readJSON(repo.path("page_observation_events.json"), &repo.pageObservations); err != nil {
@@ -1340,13 +1555,19 @@ func (repo *FileRepository) persistLocked() error {
 	if err := writeJSON(repo.path("page_transitions.json"), repo.transitions); err != nil {
 		return err
 	}
-	if err := writeJSON(repo.path("knowledge_documents.json"), repo.knowledgeDocuments); err != nil {
+	if err := writeJSON(repo.path("site_task_guides.json"), repo.siteTaskGuides); err != nil {
 		return err
 	}
-	if err := writeJSON(repo.path("knowledge_chunks.json"), repo.knowledgeChunks); err != nil {
+	if err := writeJSON(repo.path("site_task_guide_feedback.json"), repo.siteGuideFeedback); err != nil {
 		return err
 	}
-	if err := writeJSON(repo.path("business_system_profiles.json"), repo.businessProfiles); err != nil {
+	if err := writeJSON(repo.path("site_manual_sources.json"), repo.siteManualSources); err != nil {
+		return err
+	}
+	if err := writeJSON(repo.path("site_manual_wiki_pages.json"), repo.siteManualPages); err != nil {
+		return err
+	}
+	if err := writeJSON(repo.path("site_manual_wiki_chunks.json"), repo.siteManualChunks); err != nil {
 		return err
 	}
 	if err := writeJSON(repo.path("page_observation_events.json"), repo.pageObservations); err != nil {
@@ -1417,58 +1638,8 @@ func memoryEvidenceStatsKey(projectID string, source MemoryEvidenceSource, evide
 	return strings.TrimSpace(projectID) + ":" + string(source) + ":" + strings.TrimSpace(evidenceID)
 }
 
-func businessProfileKey(projectID, site, module string) string {
-	return strings.Join([]string{
-		strings.TrimSpace(projectID),
-		strings.TrimSpace(site),
-		strings.TrimSpace(module),
-	}, "\x00")
-}
-
-func profileSourceAllowed(profileSource MemorySourceType, requested MemorySourceType) bool {
-	if profileSource == "" {
-		profileSource = MemorySourceProduction
-	}
-	if requested != "" {
-		return profileSource == requested
-	}
-	return profileSource == MemorySourceProduction
-}
-
-func businessProfileRank(profile BusinessSystemProfile, query BusinessSystemProfileQuery) int {
-	if query.ProjectID != "" && profile.ProjectID != query.ProjectID {
-		return 0
-	}
-	score := 1
-	if query.Site != "" {
-		if profile.Site == query.Site {
-			score += 8
-		} else if profile.Site != "" {
-			return 0
-		}
-	}
-	if query.Module != "" {
-		if strings.EqualFold(profile.Module, query.Module) {
-			score += 12
-		} else if profile.Module != "" {
-			return 0
-		}
-	} else if profile.Module != "" {
-		return 0
-	}
-	if profile.Status == StatusDisabled {
-		return 0
-	}
-	return score
-}
-
-func scoreKnowledgeChunk(chunk KnowledgeChunk, queryText string) float64 {
-	searchText := strings.ToLower(strings.Join([]string{
-		chunk.Title,
-		chunk.Source,
-		chunk.ChunkText,
-		strings.Join(chunk.Tags, " "),
-	}, " "))
+func scoreText(searchText string, queryText string) float64 {
+	searchText = strings.ToLower(searchText)
 	score := 0.0
 	for _, term := range strings.Fields(queryText) {
 		term = strings.Trim(term, " \t\n\r,.，。:：;；/\\")
@@ -1487,6 +1658,236 @@ func scoreKnowledgeChunk(chunk KnowledgeChunk, queryText string) float64 {
 		}
 	}
 	return score
+}
+
+func siteManualChunkFilterReason(chunk SiteManualWikiChunk, query SiteManualWikiSearchQuery) string {
+	if query.ProjectID != "" && chunk.ProjectID != query.ProjectID {
+		return "project mismatch"
+	}
+	if query.Site != "" && chunk.Site != query.Site {
+		return "site mismatch"
+	}
+	if query.Module != "" {
+		if chunk.Module != "" && !strings.EqualFold(chunk.Module, query.Module) {
+			return "module mismatch"
+		}
+	} else if chunk.Module != "" {
+		return "module required"
+	}
+	if chunk.Status != StatusActive {
+		return "status is not active"
+	}
+	if manualNegativeInstructionChunk(chunk) {
+		return "negative manual instruction"
+	}
+	if manualTaskActionMismatch(chunk, query) {
+		return "task action mismatch"
+	}
+	if !hardRulesMatch(chunk.PageGuards, query) {
+		return "page guard mismatch"
+	}
+	if emptyHardRules(chunk.PageGuards) && !manualTargetEvidenceMatches(chunk, query) {
+		return "missing target evidence"
+	}
+	return ""
+}
+
+func emptyHardRules(rules HardRules) bool {
+	return rules.URLPattern == "" &&
+		len(rules.URLIncludes) == 0 &&
+		len(rules.TextAll) == 0 &&
+		len(rules.TextAny) == 0 &&
+		len(rules.ControlsAll) == 0 &&
+		len(rules.ControlsAny) == 0
+}
+
+func manualTargetEvidenceMatches(chunk SiteManualWikiChunk, query SiteManualWikiSearchQuery) bool {
+	targetTerms := stableManualTargetTerms(chunk.TargetTerms)
+	if len(targetTerms) == 0 {
+		return false
+	}
+	evidence := strings.ToLower(strings.Join([]string{
+		query.Title,
+		query.VisibleTextSample,
+		query.ActiveOverlayHint,
+		query.URL,
+	}, "\n"))
+	for _, term := range targetTerms {
+		if manualTermMatches(evidence, term) {
+			return true
+		}
+	}
+	return false
+}
+
+func stableManualTargetTerms(terms []string) []string {
+	stopwords := map[string]bool{
+		"and": true, "the": true, "then": true, "from": true, "with": true, "into": true,
+		"open": true, "click": true, "choose": true, "select": true, "confirm": true,
+		"name": true, "page": true, "list": true, "row": true, "use": true,
+	}
+	result := []string{}
+	for _, term := range terms {
+		term = strings.ToLower(strings.TrimSpace(term))
+		if term == "" || stopwords[term] {
+			continue
+		}
+		if isASCIIManualTerm(term) && len(term) < 4 {
+			continue
+		}
+		result = append(result, term)
+	}
+	return compactUniqueStrings(result)
+}
+
+func manualTermMatches(text, term string) bool {
+	text = strings.ToLower(text)
+	term = strings.ToLower(strings.TrimSpace(term))
+	if term == "" {
+		return false
+	}
+	if isASCIIManualTerm(term) {
+		return regexp.MustCompile(`(^|[^a-z0-9_])` + regexp.QuoteMeta(term) + `([^a-z0-9_]|$)`).MatchString(text)
+	}
+	return strings.Contains(text, term)
+}
+
+func manualNegativeInstructionChunk(chunk SiteManualWikiChunk) bool {
+	text := strings.ToLower(strings.TrimSpace(chunk.Text))
+	return strings.HasPrefix(text, "do not use") ||
+		strings.HasPrefix(text, "don't use") ||
+		strings.HasPrefix(text, "never use") ||
+		strings.HasPrefix(text, "不要") ||
+		strings.HasPrefix(text, "禁止")
+}
+
+func manualTaskActionMismatch(chunk SiteManualWikiChunk, query SiteManualWikiSearchQuery) bool {
+	queryActions := manualPrimaryActionTerms(query.Task)
+	if len(queryActions) == 0 {
+		return false
+	}
+	chunkActions := manualPrimaryActionTerms(manualPositiveInstructionText(strings.Join([]string{
+		chunk.Text,
+		strings.Join(chunk.TargetTerms, " "),
+	}, " ")))
+	return len(chunkActions) == 0 || !stringListsOverlap(queryActions, chunkActions)
+}
+
+func manualPositiveInstructionText(text string) string {
+	lower := strings.ToLower(text)
+	for _, marker := range []string{"do not use", "don't use", "never use", "不要", "禁止"} {
+		if index := strings.Index(lower, marker); index >= 0 {
+			return strings.TrimSpace(text[:index])
+		}
+	}
+	return text
+}
+
+func manualPrimaryActionTerms(text string) []string {
+	groups := map[string][]string{
+		"restore":  {"restore", "recover", "恢复", "数据恢复"},
+		"reset":    {"reset", "credential", "重置", "凭证"},
+		"restart":  {"restart", "restarted"},
+		"refund":   {"refund", "refunded"},
+		"escalate": {"escalate", "escalated", "escalation"},
+		"rollback": {"rollback", "rolled back"},
+		"export":   {"export", "exported"},
+		"delete":   {"delete", "remove", "drop", "cleanup", "删除", "移除", "销毁", "清理"},
+		"merge":    {"merge", "merged"},
+		"promote":  {"promote", "promoted"},
+		"capture":  {"capture", "captured"},
+		"archive":  {"archive", "archived"},
+	}
+	result := []string{}
+	for canonical, terms := range groups {
+		for _, term := range terms {
+			if manualTermMatches(text, term) {
+				result = append(result, canonical)
+				break
+			}
+		}
+	}
+	return compactUniqueStrings(result)
+}
+
+func isASCIIManualTerm(value string) bool {
+	for _, r := range value {
+		if r > 127 {
+			return false
+		}
+	}
+	return true
+}
+
+func stringListsOverlap(left, right []string) bool {
+	seen := map[string]bool{}
+	for _, value := range left {
+		seen[value] = true
+	}
+	for _, value := range right {
+		if seen[value] {
+			return true
+		}
+	}
+	return false
+}
+
+func compactUniqueStrings(values []string) []string {
+	result := []string{}
+	seen := map[string]bool{}
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" || seen[value] {
+			continue
+		}
+		seen[value] = true
+		result = append(result, value)
+	}
+	return result
+}
+
+func hardRulesMatch(rules HardRules, query SiteManualWikiSearchQuery) bool {
+	searchURL := strings.ToLower(query.URL)
+	pageText := strings.ToLower(strings.Join([]string{
+		query.Title,
+		query.VisibleTextSample,
+		query.ActiveOverlayHint,
+	}, "\n"))
+	for _, value := range rules.URLIncludes {
+		if value != "" && !strings.Contains(searchURL, strings.ToLower(value)) {
+			return false
+		}
+	}
+	if rules.URLPattern != "" && query.URL != "" && !strings.Contains(searchURL, strings.ToLower(strings.TrimRight(rules.URLPattern, "*"))) {
+		return false
+	}
+	for _, value := range rules.TextAll {
+		if value != "" && !strings.Contains(pageText, strings.ToLower(value)) {
+			return false
+		}
+	}
+	if len(rules.TextAny) > 0 {
+		matched := false
+		for _, value := range rules.TextAny {
+			if value != "" && strings.Contains(pageText, strings.ToLower(value)) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return false
+		}
+	}
+	return true
+}
+
+func sourceRefsContain(refs []MemorySourceRef, id string) bool {
+	for _, ref := range refs {
+		if ref.ID == id {
+			return true
+		}
+	}
+	return false
 }
 
 func scoreExperienceMemory(memory ExperienceMemory, queryText string) float64 {
@@ -1539,95 +1940,6 @@ func scoreFailureMemory(memory FailureMemory, queryText string) float64 {
 		}
 	}
 	return score
-}
-
-func knowledgeChunkHardGateMatches(chunk KnowledgeChunk, query KnowledgeSearchQuery) bool {
-	sourceType := MemorySourceType(metadataString(chunk.Metadata, "sourceType"))
-	if sourceType == "" {
-		sourceType = MemorySourceProduction
-	}
-	if sourceType != MemorySourceProduction {
-		return false
-	}
-	if query.Module != "" {
-		module := metadataString(chunk.Metadata, "module")
-		if module != "" && !strings.EqualFold(module, query.Module) {
-			return false
-		}
-	} else if (query.Site != "" || query.URL != "") && metadataString(chunk.Metadata, "module") != "" {
-		return false
-	}
-	if query.Site != "" {
-		site := metadataString(chunk.Metadata, "site")
-		if site != "" && site != query.Site {
-			return false
-		}
-	}
-	return knowledgeChunkScopeMatches(chunk, query.URL)
-}
-
-func knowledgeChunkScopeMatches(chunk KnowledgeChunk, queryURL string) bool {
-	docURL := metadataString(chunk.Metadata, "url")
-	if docURL == "" {
-		docURL = metadataString(chunk.Metadata, "urlPattern")
-	}
-	if docURL == "" {
-		return strings.TrimSpace(queryURL) == ""
-	}
-	if strings.TrimSpace(queryURL) == "" {
-		return true
-	}
-	docURL = normalizeScopeURL(docURL)
-	queryURL = normalizeScopeURL(queryURL)
-	return docURL == queryURL || strings.HasPrefix(queryURL, docURL+"/") || strings.HasPrefix(queryURL, docURL+"?")
-}
-
-func metadataString(metadata map[string]any, key string) string {
-	if metadata == nil {
-		return ""
-	}
-	value, ok := metadata[key]
-	if !ok {
-		return ""
-	}
-	switch typed := value.(type) {
-	case string:
-		return strings.TrimSpace(typed)
-	default:
-		return ""
-	}
-}
-
-func normalizeScopeURL(value string) string {
-	value = strings.TrimSpace(strings.ToLower(value))
-	parsed, err := url.Parse(value)
-	if err == nil && parsed.Scheme != "" && parsed.Host != "" {
-		host := strings.ToLower(parsed.Host)
-		hostname := strings.ToLower(parsed.Hostname())
-		if isLoopbackHost(hostname) {
-			host = hostname
-		}
-		path := strings.TrimRight(parsed.EscapedPath(), "/")
-		if path == "" {
-			path = "/"
-		}
-		return parsed.Scheme + "://" + host + path
-	}
-	if before, _, ok := strings.Cut(value, "#"); ok {
-		value = before
-	}
-	if before, _, ok := strings.Cut(value, "?"); ok {
-		value = before
-	}
-	return strings.TrimRight(value, "/")
-}
-
-func isLoopbackHost(hostname string) bool {
-	if hostname == "localhost" {
-		return true
-	}
-	ip := net.ParseIP(hostname)
-	return ip != nil && ip.IsLoopback()
 }
 
 type pruneCandidate struct {

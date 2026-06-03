@@ -31,7 +31,3 @@ func registerAdminRoutes(mux *http.ServeMux, cfg config.Config, indexer Workflow
 		writeJSON(w, http.StatusAccepted, map[string]any{"status": "accepted", "count": count})
 	})
 }
-
-func writeDeprecatedEndpoint(w http.ResponseWriter, migration string) {
-	writeError(w, http.StatusGone, "endpoint_deprecated", "This endpoint has been removed. Use "+migration+" instead.")
-}

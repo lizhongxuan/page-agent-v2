@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/page-agent/workflow-backend/internal/config"
-	"github.com/page-agent/workflow-backend/internal/knowledge"
 	"github.com/page-agent/workflow-backend/internal/memory"
 	"github.com/page-agent/workflow-backend/internal/registry"
 )
@@ -19,6 +18,7 @@ type memoryPruner interface {
 }
 
 func registerMemoryRoutes(mux *http.ServeMux, cfg config.Config, repo registry.Repository, vectorizer KnowledgeVectorizer) {
+	_ = vectorizer
 	mux.HandleFunc("POST /api/memory/page-observations", func(w http.ResponseWriter, r *http.Request) {
 		if repo == nil {
 			writeError(w, http.StatusServiceUnavailable, "memory_failed", "Workflow registry is not configured.")
@@ -62,34 +62,6 @@ func registerMemoryRoutes(mux *http.ServeMux, cfg config.Config, repo registry.R
 			MaxMemoryContextEvents: cfg.MemoryMaxContextEventsPerProject,
 		})
 		writeJSON(w, http.StatusOK, response)
-	})
-
-	mux.HandleFunc("POST /api/memory/documents", func(w http.ResponseWriter, r *http.Request) {
-		if repo == nil {
-			writeError(w, http.StatusServiceUnavailable, "memory_failed", "Workflow registry is not configured.")
-			return
-		}
-		documents, err := decodeMemoryDocuments(r)
-		if err != nil {
-			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
-			return
-		}
-		service := knowledge.NewServiceWithVectorizer(repo, vectorizer)
-		ids, err := service.Ingest(r.Context(), documents)
-		if err != nil {
-			writeError(w, http.StatusBadRequest, "memory_documents_failed", err.Error())
-			return
-		}
-		profile, updated, err := memory.NewBusinessProfileService(repo).UpdateFromDocuments(r.Context(), documents)
-		if err != nil {
-			writeError(w, http.StatusBadRequest, "memory_profile_failed", err.Error())
-			return
-		}
-		writeJSON(w, http.StatusOK, map[string]any{
-			"documentIds":            ids,
-			"updatedBusinessProfile": updated,
-			"businessProfile":        profile,
-		})
 	})
 
 	mux.HandleFunc("POST /api/memory/task-runs", func(w http.ResponseWriter, r *http.Request) {
@@ -204,18 +176,10 @@ func registerMemoryRoutes(mux *http.ServeMux, cfg config.Config, repo registry.R
 		}
 		projectID := r.URL.Query().Get("projectId")
 		site := r.URL.Query().Get("site")
-		module := r.URL.Query().Get("module")
 		contextID := r.URL.Query().Get("contextId")
-		profile, _ := repo.GetBusinessSystemProfile(r.Context(), registry.BusinessSystemProfileQuery{
-			ProjectID:  projectID,
-			Site:       site,
-			Module:     module,
-			SourceType: registry.MemorySourceProduction,
-		})
 		pageStates, _ := repo.ListPageStates(r.Context(), registry.PageStateListQuery{ProjectID: projectID, Site: site})
 		pageSurfaces, _ := repo.ListPageSurfaces(r.Context(), registry.PageSurfaceListQuery{ProjectID: projectID, Site: site})
 		transitions, _ := repo.ListPageTransitions(r.Context(), registry.PageTransitionListQuery{ProjectID: projectID, Site: site})
-		experiences, _ := repo.ListExperienceMemories(r.Context(), registry.ExperienceMemorySearchQuery{ProjectID: projectID, Site: site})
 		failures, _ := repo.ListFailureMemories(r.Context(), registry.FailureMemorySearchQuery{ProjectID: projectID, Site: site})
 		workflows, _ := repo.ListActiveWorkflows(r.Context(), projectID)
 		reviews, _ := repo.ListMemoryReviews(r.Context(), registry.MemoryReviewListQuery{ProjectID: projectID})
@@ -226,31 +190,101 @@ func registerMemoryRoutes(mux *http.ServeMux, cfg config.Config, repo registry.R
 			TaskRunID: r.URL.Query().Get("taskRunId"),
 			ContextID: r.URL.Query().Get("contextId"),
 		})
+		attributionEvents = filterLegacyExperienceAttributionEvents(attributionEvents)
 		evidenceStats, _ := repo.ListMemoryEvidenceStats(r.Context(), registry.MemoryEvidenceStatsListQuery{
 			ProjectID: projectID,
 			Site:      site,
 		})
+		evidenceStats = filterLegacyExperienceEvidenceStats(evidenceStats)
 		var contextEvent *registry.MemoryContextEvent
 		if contextID != "" {
 			if event, err := repo.GetMemoryContextEvent(r.Context(), contextID); err == nil {
 				contextEvent = &event
 			}
 		}
+		candidateGuides := evidenceRefsBySource(contextEvent, registry.MemoryEvidenceSourceGuide)
+		candidateManuals := evidenceRefsBySource(contextEvent, registry.MemoryEvidenceSourceManual)
+		guideFeedback, _ := repo.ListMemoryAttributionEvents(r.Context(), registry.MemoryAttributionEventListQuery{
+			ProjectID:      projectID,
+			Site:           site,
+			ContextID:      contextID,
+			EvidenceSource: registry.MemoryEvidenceSourceGuide,
+		})
+		manualFeedback, _ := repo.ListMemoryAttributionEvents(r.Context(), registry.MemoryAttributionEventListQuery{
+			ProjectID:      projectID,
+			Site:           site,
+			ContextID:      contextID,
+			EvidenceSource: registry.MemoryEvidenceSourceManual,
+		})
 		writeJSON(w, http.StatusOK, map[string]any{
-			"businessProfile":   profile,
-			"contextEvent":      contextEvent,
-			"pageStates":        pageStates,
-			"pageSurfaces":      pageSurfaces,
-			"transitions":       transitions,
-			"experiences":       experiences,
-			"failures":          failures,
-			"workflows":         workflows,
-			"reviews":           reviews,
-			"taskRuns":          taskRuns,
-			"attributionEvents": attributionEvents,
-			"evidenceStats":     evidenceStats,
+			"contextEvent":                 contextEvent,
+			"pageObservationSignal":        contextPayloadValue(contextEvent, "pageObservationSignal"),
+			"candidateSiteTaskGuides":      candidateGuides,
+			"candidateSiteManualKnowledge": candidateManuals,
+			"filteredEvidence":             contextDebugValue(contextEvent, "filteredEvidence"),
+			"guideFeedback":                guideFeedback,
+			"manualFeedback":               manualFeedback,
+			"pageStates":                   pageStates,
+			"pageSurfaces":                 pageSurfaces,
+			"transitions":                  transitions,
+			"failures":                     failures,
+			"workflows":                    workflows,
+			"reviews":                      reviews,
+			"taskRuns":                     taskRuns,
+			"attributionEvents":            attributionEvents,
+			"evidenceStats":                evidenceStats,
 		})
 	})
+}
+
+func evidenceRefsBySource(contextEvent *registry.MemoryContextEvent, source registry.MemoryEvidenceSource) []registry.MemoryEvidenceRef {
+	if contextEvent == nil {
+		return nil
+	}
+	result := []registry.MemoryEvidenceRef{}
+	for _, ref := range contextEvent.EvidenceRefs {
+		if ref.Source == source {
+			result = append(result, ref)
+		}
+	}
+	return result
+}
+
+func filterLegacyExperienceAttributionEvents(events []registry.MemoryAttributionEvent) []registry.MemoryAttributionEvent {
+	result := make([]registry.MemoryAttributionEvent, 0, len(events))
+	for _, event := range events {
+		if event.EvidenceSource == registry.MemoryEvidenceSourceExperience {
+			continue
+		}
+		result = append(result, event)
+	}
+	return result
+}
+
+func filterLegacyExperienceEvidenceStats(stats []registry.MemoryEvidenceStats) []registry.MemoryEvidenceStats {
+	result := make([]registry.MemoryEvidenceStats, 0, len(stats))
+	for _, item := range stats {
+		if item.EvidenceSource == registry.MemoryEvidenceSourceExperience {
+			continue
+		}
+		result = append(result, item)
+	}
+	return result
+}
+
+func contextPayloadValue(contextEvent *registry.MemoryContextEvent, key string) any {
+	if contextEvent == nil || contextEvent.Payload == nil {
+		return nil
+	}
+	return contextEvent.Payload[key]
+}
+
+func contextDebugValue(contextEvent *registry.MemoryContextEvent, key string) any {
+	debug, ok := contextPayloadValue(contextEvent, "debug").(map[string]any)
+	if !ok {
+		return nil
+	}
+	return debug[key]
 }
 
 func findMemoryReview(r *http.Request, repo registry.Repository, id string) (registry.MemoryReview, error) {
@@ -289,39 +323,6 @@ func applyApprovedMemoryReview(r *http.Request, repo registry.Repository, review
 	}
 }
 
-func decodeMemoryDocuments(r *http.Request) ([]knowledge.DocumentInput, error) {
-	var raw struct {
-		Documents []memory.MemoryDocumentInput `json:"documents"`
-		memory.MemoryDocumentInput
-	}
-	if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
-		return nil, err
-	}
-	items := raw.Documents
-	if len(items) == 0 && raw.Content != "" {
-		items = []memory.MemoryDocumentInput{raw.MemoryDocumentInput}
-	}
-	projectID := defaultProjectID(raw.ProjectID)
-	documents := make([]knowledge.DocumentInput, 0, len(items))
-	for _, item := range items {
-		itemProjectID := item.ProjectID
-		if itemProjectID == "" {
-			itemProjectID = projectID
-		}
-		documents = append(documents, knowledge.DocumentInput{
-			ID:         item.ID,
-			ProjectID:  defaultProjectID(itemProjectID),
-			Title:      item.Title,
-			Source:     item.Source,
-			URL:        item.URL,
-			Content:    item.Content,
-			Tags:       item.Tags,
-			SourceType: item.SourceType,
-		})
-	}
-	return documents, nil
-}
-
 func defaultProjectID(projectID string) string {
 	if projectID == "" {
 		return "default"
@@ -341,7 +342,21 @@ func pruneMemory(ctx context.Context, repo registry.Repository, policy registry.
 	if !ok {
 		return registry.MemoryPruneResult{}, nil
 	}
-	return pruner.PruneMemory(ctx, policy)
+	result, err := pruner.PruneMemory(ctx, policy)
+	if err != nil {
+		return registry.MemoryPruneResult{}, err
+	}
+	guideUpdates, err := maintainSiteTaskGuideStatuses(ctx, repo, policy)
+	if err != nil {
+		return registry.MemoryPruneResult{}, err
+	}
+	manualUpdates, err := maintainSiteManualStatuses(ctx, repo, policy)
+	if err != nil {
+		return registry.MemoryPruneResult{}, err
+	}
+	result.UpdatedSiteTaskGuides = guideUpdates
+	result.UpdatedSiteManualSources = manualUpdates
+	return result, nil
 }
 
 func memoryPrunePolicyEmpty(policy registry.MemoryPrunePolicy) bool {
@@ -349,6 +364,107 @@ func memoryPrunePolicyEmpty(policy registry.MemoryPrunePolicy) bool {
 		policy.MaxPageObservationEvents <= 0 &&
 		policy.MaxMemoryContextEvents <= 0 &&
 		policy.MaxFailureMemories <= 0
+}
+
+func maintainSiteTaskGuideStatuses(ctx context.Context, repo registry.Repository, policy registry.MemoryPrunePolicy) (int, error) {
+	guideRepo, ok := repo.(registry.SiteTaskGuideRepository)
+	if !ok {
+		return 0, nil
+	}
+	guides, err := guideRepo.ListSiteTaskGuides(ctx, registry.SiteTaskGuideListQuery{
+		ProjectID: policy.ProjectID,
+		Site:      policy.Site,
+	})
+	if err != nil {
+		return 0, err
+	}
+	updated := 0
+	for _, guide := range guides {
+		if guide.Status != registry.StatusActive {
+			continue
+		}
+		nextStatus := registry.Status("")
+		switch {
+		case guide.StaleCount >= 3:
+			nextStatus = registry.StatusStale
+		case guide.MisleadingCount >= 3:
+			nextStatus = registry.StatusHidden
+		case guide.UnusedCount >= 5 && guide.SuccessCount == 0:
+			nextStatus = registry.StatusHidden
+		}
+		if nextStatus == "" {
+			continue
+		}
+		if err := guideRepo.UpdateSiteTaskGuideStatus(ctx, guide.ID, nextStatus); err != nil {
+			return updated, err
+		}
+		updated++
+	}
+	return updated, nil
+}
+
+func maintainSiteManualStatuses(ctx context.Context, repo registry.Repository, policy registry.MemoryPrunePolicy) (int, error) {
+	manualRepo, ok := repo.(registry.SiteManualRepository)
+	if !ok {
+		return 0, nil
+	}
+	sources, err := manualRepo.ListSiteManualSources(ctx, registry.SiteManualSourceListQuery{
+		ProjectID:     policy.ProjectID,
+		Site:          policy.Site,
+		IncludeHidden: true,
+	})
+	if err != nil {
+		return 0, err
+	}
+	stats, err := repo.ListMemoryEvidenceStats(ctx, registry.MemoryEvidenceStatsListQuery{
+		ProjectID:      policy.ProjectID,
+		Site:           policy.Site,
+		EvidenceSource: registry.MemoryEvidenceSourceManual,
+	})
+	if err != nil {
+		return 0, err
+	}
+	statsByID := map[string]registry.MemoryEvidenceStats{}
+	for _, item := range stats {
+		statsByID[item.EvidenceID] = item
+	}
+	updated := 0
+	for _, source := range sources {
+		if source.Status != registry.StatusActive {
+			continue
+		}
+		wiki, err := manualRepo.GetSiteManualWikiForSource(ctx, source.ID)
+		if err != nil {
+			continue
+		}
+		staleCount := 0
+		helpfulCount := 0
+		for _, chunk := range wiki.Chunks {
+			if !sourceRefsContainID(chunk.SourceRefs, source.ID) {
+				continue
+			}
+			stat := statsByID[chunk.ID]
+			staleCount += stat.StaleCount
+			helpfulCount += stat.HelpfulCount
+		}
+		if staleCount < 3 || helpfulCount > 0 {
+			continue
+		}
+		if err := manualRepo.UpdateSiteManualSourceStatus(ctx, source.ID, registry.StatusStale); err != nil {
+			return updated, err
+		}
+		updated++
+	}
+	return updated, nil
+}
+
+func sourceRefsContainID(refs []registry.MemorySourceRef, id string) bool {
+	for _, ref := range refs {
+		if ref.ID == id {
+			return true
+		}
+	}
+	return false
 }
 
 func siteFromRawURL(rawURL string) string {
